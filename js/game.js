@@ -64,18 +64,27 @@ var t2p      = function(t)     { return t*TILE;                  },
     cell     = function(x,y)   { return tcell(p2t(x),p2t(y));    },
     tcell    = function(tx,ty) { return cells[tx + (ty*MAP.tw)]; };
 
+var TILE_WIDTH = 128;
+var TILE_DEPTH = 64;
+function TileToScreen(x, y, offsetX, offsetY)
+{
+    var screen = {};
+    //calculate the screen coordinates
+    //note: these will then be modified by the camera
+    screen.x = offsetX - (y * TILE_WIDTH/2) + (x * TILE_WIDTH/2) - (TILE_WIDTH/2);
+    screen.y = offsetY + (y * TILE_DEPTH/2) + (x * TILE_DEPTH/2);
+    return screen;
+ }
 
-function onResize( element, callback ){
-  var elementHeight = element.height,
-      elementWidth = element.width;
-  setInterval(function(){
-      if( element.height !== elementHeight || element.width !== elementWidth ){
-        elementHeight = element.height;
-        elementWidth = element.width;
-        callback();
-      }
-  }, 300);
-}
+function ScreenToTile(mX, mY)
+{
+    var selectedTile = {};
+    var x = mX - stage_x;
+    var y = mY - stage_y;
+    selectedTile.x = Math.floor( (y + x/2)/TILE_DEPTH );
+    selectedTile.y = Math.floor( (y - x/2)/TILE_DEPTH );
+    return selectedTile;
+ }
 
 // ---------------------------------------------------------------------------
 // -        Create the renderer
@@ -114,12 +123,18 @@ function restart() {
 // ---------------------------------------------------------------------------
 // -        Char controls
 // ---------------------------------------------------------------------------
+var place = 0;
 var left = keyboard(37),
     up = keyboard(38),
     right = keyboard(39),
     down = keyboard(40),
     abutton = keyboard(0x5A),
-    bbutton = keyboard(0x58);
+    bbutton = keyboard(0x58),
+        cbutton = keyboard(0x43),
+        dbutton = keyboard(0x56),
+        ebutton = keyboard(0x42),
+        fbutton = keyboard(0x4E),
+    gbutton = keyboard(0x4D);
 left.press = function() {
 };
 
@@ -141,8 +156,27 @@ down.release = function() {
     player.duck = 0;
 }
 abutton.press = function() {
+    place = 1;
 }
 abutton.release = function() {
+}
+bbutton.press = function() {
+    place = 2;
+}
+cbutton.press = function() {
+    place = 3;
+}
+dbutton.press = function() {
+    place = 4;
+}
+ebutton.press = function() {
+    place = 5;
+}
+fbutton.press = function() {
+    place = 6;
+}
+gbutton.press = function() {
+    place = 7;
 }
 
 var flag = false,
@@ -173,27 +207,50 @@ function findxy(res, e) {
             currX = e.clientX - canvas.offsetLeft;
             currY = e.clientY - canvas.offsetTop;
 
-            flag = true;
-            dot_flag = true;
-            if (dot_flag) {
-                dot_flag = false;
+            if (place) {
+                createEntity(place, currX, currY);
+                place = 0;
+            } else {
+                flag = true;
+                dot_flag = true;
+                if (dot_flag) {
+                    dot_flag = false;
+                }
             }
         }
         if (res == 'up' || res == "out") {
             flag = false;
         }
         if (res == 'move') {
-            if (flag) {
-                prevX = currX;
-                prevY = currY;
-                currX = e.clientX - canvas.offsetLeft;
-                currY = e.clientY - canvas.offsetTop;
+            prevX = currX;
+            prevY = currY;
+            currX = e.clientX - canvas.offsetLeft;
+            currY = e.clientY - canvas.offsetTop;
+             if (flag) {
                 stage_x += (currX - prevX);
                 stage_y += (currY - prevY);
             }
         }
     }
 
+
+// ---------------------------------------------------------------------------
+// -        BUILD
+// ---------------------------------------------------------------------------
+var buildNames = ['City', 'Factory', 'Airport', 'Dock', 'Laboratory', 'Castle', 'Estate'];
+var colourName = '1';
+var entityBatch = [];
+function createEntity(t, x, y) {
+    var tt = ScreenToTile(x, y);
+    var ss = TileToScreen(tt.x, tt.y, 0, 0);
+    entity = new Image();
+    //entity.src = "img/Sea.png";//
+    //entity.src = "img/Revised_PixVoxel_Wargame/standing_frames/color7_City_Large_face0_0.png";.
+    entity.src = "img/Revised_PixVoxel_Wargame/standing_frames/color"+colourName+"_"+buildNames[t-1]+"_Large_face0_0.png";
+    entity.ppx = ss.x + 0.5 * (TILE_WIDTH - entity.width);
+    entity.ppy = ss.y - entity.height + TILE_DEPTH;
+    entityBatch.push(entity);
+}
 
 // ---------------------------------------------------------------------------
 // -        LOOP
@@ -222,7 +279,7 @@ function gameState(dt) {
     var x = 0, y = 0;
     var tx = canvas.width / width + 2;
     var ty = canvas.height / height + 2;
-    var off_x = stage_x % width;
+    var off_x = stage_x % width - 64;
     var off_y = stage_y % height;
     var i_off = stage_x == 0 ? 0 : -Math.floor(Math.abs(stage_x / width)) * Math.abs(stage_x) / stage_x;
     var j_off = stage_y == 0 ? 0 : -Math.floor(Math.abs(stage_y / height)) * Math.abs(stage_y) / stage_y;
@@ -238,6 +295,36 @@ function gameState(dt) {
             var tile = tiles[t];
             ctx.drawImage(tile, srcX, srcY, width, height, x, y, width, height);
         }
+    }
+
+    // Cursor
+    if (place) {
+        var tt = ScreenToTile(currX, currY);
+        var ss = TileToScreen(tt.x, tt.y, stage_x, stage_y);
+        var x0 = ss.x;
+        var x1 = x0 + 64;
+        var x2 = x1 + 64;
+        var y0 = ss.y;
+        var y1 = y0 + 32;
+        var y2 = y1 + 32;
+        ctx.beginPath();
+        ctx.moveTo(x0, y1);
+        ctx.lineTo(x1, y0);
+        ctx.lineTo(x2, y1);
+        ctx.lineTo(x1, y2);
+        ctx.closePath();
+        ctx.stroke();
+    }
+
+    // Entities
+    for (var i = 0; i < entityBatch.length; ++i) {
+        var entity = entityBatch[i];
+        x = entity.ppx + stage_x;
+        y = entity.ppy + stage_y;
+        width = 248;
+        height = 308;
+        var tile = entity;
+        ctx.drawImage(tile, srcX, srcY, width, height, x, y, width, height);
     }
 }
 
