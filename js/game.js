@@ -2,38 +2,25 @@
 // -        Setup
 // ---------------------------------------------------------------------------
 var map = [];
-// var tile1 = new Image();
-// var tile2 = new Image();
-// var tile3 = new Image();
-// var tiles = [tile1, tile2, tile3, new Image(),
-// new Image(), new Image(), new Image(), new Image()];
 tiles = [];
 
 function setup() {
-    //tile1.src = "maps/snowplains_tileset.png";
-    // tile1.src = "img/terrain/Tundra_ta.png";
-    // tile2.src = "img/terrain/Tundra_tb.png";
-    // tile3.src = "img/terrain/Tundra_ta0.png";
-    // tiles[3].src = "img/terrain/Tundra_tb0.png";
 
-    // tiles[4].src = "img/terrain/Tundra_ta (copy).png";
-    // tiles[5].src = "img/terrain/Tundra_tb (copy).png";
-    // tiles[6].src = "img/terrain/Tundra_ta0 (copy).png";
-    // tiles[7].src = "img/terrain/Tundra_tb0 (copy).png";
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight; 
 
-    canvas.width = window.innerWidth;//document.body.clientWidth; //document.width is obsolete
-    canvas.height = window.innerHeight; //document.body.clientHeight; //document.height is obsolete
-
-    //loop();
-
-    get('maps/snowplains_other.json', function(req) {
-        loadTileset(JSON.parse(req.responseText), 513);
+    // Load tilesets
+    get('maps/snowplains_other_min.json', function(req) {
+        loadTileset(JSON.parse(req.responseText), 817); //513);
     });
     get('maps/SnowTile.json', function(req) {
         loadTileset(JSON.parse(req.responseText), 1);
     });
     get('maps/Border Tiles.json', function(req) {
         loadTileset(JSON.parse(req.responseText), 1409);
+    });
+    get('maps/Cracks.json', function(req) {
+        loadTileset(JSON.parse(req.responseText), 1411);
     });
 
 
@@ -45,14 +32,14 @@ function setup() {
     // Create base
     TILE_WIDTH = 64;
     TILE_DEPTH = 32;
-    var ss = TileToScreen(185, 74, stage_x, stage_y);
+    var ss = TileToScreen(85, 74, stage_x, stage_y);
     createEntity(1, ss.x, ss.y);
-    ss = TileToScreen(185, 78, stage_x, stage_y);
+    ss = TileToScreen(85, 78, stage_x, stage_y);
     createHarvester(ss.x, ss.y);
-    ss = TileToScreen(187, 78, stage_x, stage_y);
+    ss = TileToScreen(87, 78, stage_x, stage_y);
     createHarvester(ss.x, ss.y);
 
-    ss = TileToScreen(185, 76, stage_x, stage_y);
+    ss = TileToScreen(85, 76, stage_x, stage_y);
     createEntity(6, ss.x, ss.y);
     stage_x = -ss.x + 0.5 * canvas.width;
     stage_y = -ss.y + 0.5 * canvas.height;
@@ -136,10 +123,10 @@ var left = keyboard(37),
     down = keyboard(40),
     abutton = keyboard(0x5A),
     bbutton = keyboard(0x58),
-        cbutton = keyboard(0x43),
-        dbutton = keyboard(0x56),
-        ebutton = keyboard(0x42),
-        fbutton = keyboard(0x4E),
+    cbutton = keyboard(0x43),
+    dbutton = keyboard(0x56),
+    ebutton = keyboard(0x42),
+    fbutton = keyboard(0x4E),
     gbutton = keyboard(0x4D);
 left.press = function() {
 };
@@ -161,21 +148,22 @@ down.press = function() {
 down.release = function() {
 }
 abutton.press = function() {
-    place = 1;
+    tryBuild(0);
 }
 abutton.release = function() {
 }
 bbutton.press = function() {
-    place = 2;
+    tryBuild(1);
 }
 cbutton.press = function() {
-    place = 3;
+    tryBuild(2);
 }
 dbutton.press = function() {
-    place = 4;
+    tryBuild(3);
 }
 ebutton.press = function() {
-    place = 5;
+    //place = 5; //
+    tryBuild(4);
 }
 fbutton.press = function() {
     place = 6;
@@ -208,51 +196,168 @@ canvas.addEventListener("mouseup", function (e) {
 canvas.addEventListener("mouseout", function (e) {
             findxy('out', e)
         }, false);
+canvas.addEventListener('contextmenu', event => event.preventDefault());
 function findxy(res, e) {
     currX = e.clientX - canvas.offsetLeft;
     currY = e.clientY - canvas.offsetTop;
     gameEngineState.mouse(res, e);
 }
 
+var selectionBox = undefined;
 function mouseGame(res, e) {
-    if (res == 'down') {
-        prevX = clickX;
-        prevY = clickY;
-        clickX = currX;
-        clickY = currY;
-
-        if (control.move) {
-            moveCommand(currX, currY);
-        } else if (place) {
-            createEntity(place, currX, currY);
-            place = 0;
-        } else {
-            flag = true;
-            dot_flag = true;
-            if (dot_flag) {
-                dot_flag = false;
-            }
+    // Left Click
+    if (e.buttons == 1) {
+        var x = currX;
+        var y = currY;
+        //if (selectionBox == undefined) {
+        if (res == 'down') {
+            selectionBox = { x0: x, y0: y, x1: x, y1: y };
         }
+        if (res == 'move' && selectionBox) {
+            selectionBox.x1 = x;
+            selectionBox.y1 = y;
+            //doSelection(selectionBox);
+        } 
     }
+
     if (res == 'up' || res == "out") {
         flag = false;
+        if (selectionBox) { 
+            doSelection(selectionBox);
+            selectionBox = undefined;
+        }
     }
-    if (res == 'move') {
-        prevX = clickX;
-        prevY = clickY;
-        clickX = currX;
-        clickY = currY;
-        if (flag) {
-            stage_x += (clickX - prevX);
-            stage_y += (clickY - prevY);
+
+    // Right Click - Camera Pan
+    if (e.buttons == 2) {
+        if (res == 'down') {
+            prevX = clickX;
+            prevY = clickY;
+            clickX = currX;
+            clickY = currY;
+
+            if (control.move) {
+                moveCommand(currX, currY);
+            } else if (place) {
+                createEntity(place, currX, currY);
+                place = 0;
+            } else {
+                flag = true;
+                dot_flag = true;
+                if (dot_flag) {
+                    dot_flag = false;
+                }
+            }
+        }
+
+        if (res == 'move') {
+            prevX = clickX;
+            prevY = clickY;
+            clickX = currX;
+            clickY = currY;
+            if (flag) {
+                stage_x += (clickX - prevX);
+                stage_y += (clickY - prevY);
+            }
         }
     }
 }
 
+// ---------------------------------------------------------------------------
+// -        SELECT CLICK
+// --------------------------------------------------------------------------
+function doSelection(selectBox) {
+    
+    var r1 = [
+        0.5 * Math.abs(selectBox.x1 - selectBox.x0)+1,
+        0.5 * Math.abs(selectBox.y1 - selectBox.y0)+1 ];
+
+    var c1 = [
+        0.5 * (selectBox.x1 + selectBox.x0),
+        0.5 * (selectBox.y1 + selectBox.y0) 
+    ];    
+
+    selected = [];
+
+    for (var i = 0; i < entityBatch.length; ++i) {
+        var entity = entityBatch[i];
+        var r0 = [32, 16];
+        var c0 = [entity.ppx + stage_x + 32, entity.ppy + stage_y];
+        if (testAABBAABB({c:c0, r:r0}, {c:c1, r:r1})) {
+            selected.push(entity);
+        }
+    }
+}
+
+function testAABBAABB(a, b) {
+    // SIMD optimized AABB-AABB test
+    // Optimized by removing conditional branches
+    // c->centre, r->halfwidth
+    var x = Math.abs(a.c[0] - b.c[0]) <= (a.r[0] + b.r[0]);
+    var y = Math.abs(a.c[1] - b.c[1]) <= (a.r[1] + b.r[1]);
+    return x && y;
+}
+
+function ccw(A,B,C) {
+    return (C.y-A.y)*(B.x-A.x) > (B.y-A.y)*(C.x-A.x);
+}
+
+function intersect(A,B,C,D) {
+    return ccw(A,C,D) != ccw(B,C,D) && ccw(A,B,C) != ccw(A,B,D);
+}
+
+function selectClick(x0, y0, x1, y1) {
+    selected = [];
+
+    // rect collide every entity
+    for (var i = 0; i < entityBatch.length; ++i) {
+        var entity = entityBatch[i];
+        // rect/diamond select
+        // var ex0 = 0;
+        // var ex1 = 0;
+        // var ex2 = 0;
+        // var ey0 = 0;
+        // var ey1 = 0;
+        // var ey2 = 0;
+        // var i0 = intersect({x:x0, y:y0}, {x:x0, y:y1}, {x:ex0, y:ey0}, {x:ex0, y:ey1});
+
+        if (entity.ppx > x0 - 16 &&
+            entity.ppx < x1 + 16 &&
+            entity.ppy < y0 - 16 &&
+            entity.ppy > y1 + 16 ) {
+                selected.push(entity);
+            }
+    }
+
+    // Clean up
+}
+
+// ---------------------------------------------------------------------------
+// -        BUILD COMMAND
+// --------------------------------------------------------------------------
+var barracks = [200, 200, ""];
+var factory = [300, 400, ""];
+var airport = [400, 300, ""];
+var techlab = [400, 400, ""];
+var power = [0, 0, ""];
+var build_costs = [barracks, factory, airport, techlab, power];
+
+function tryBuild(t) {
+    // Check resources
+    var power = build_costs[t][0];
+    var ice = build_costs[t][1];
+    var availablePower = playerEconomy.power;
+    var availableIce = playerEconomy.ice;
+    if (availablePower < power) return;
+    if (availableIce < ice) return;
+    
+    // Go into building place mode
+    place = t+1;
+}
 
 // ---------------------------------------------------------------------------
 // -        MOVE COMMAND
-// ---------------------------------------------------------------------------
+// --------------------------------------------------------------------------
 var selected = [];
 var dir_i = 100, dir_j = 100;
 function moveCommand(sx, sy) {
@@ -283,8 +388,39 @@ function moveCommand(sx, sy) {
     }
 }
 
-function updateMovePath()    
-{
+function updateMovePath() {
+    for (var i = 0; i < entityBatch.length; ++i) {
+        var entity = entityBatch[i];
+        if (entity.target) {
+            entity.dx = 0;
+            entity.dy = 0;
+            if (entity.ppx <= entity.target.x - 1) entity.dx += 1;
+            else if (entity.ppx >= entity.target.x + 1) entity.dx -= 1;
+            else { entity.ppx = entity.target.x; entity.dx = 0; }
+
+            if (entity.ppy < entity.target.y - 1) entity.dy += 1;
+            else if (entity.ppy > entity.target.y + 1) entity.dy -= 1;
+            else { entity.ppy = entity.target.y; entity.dy = 0; }
+
+            if (entity.dy == 1 && entity.dx == 1) entity.dir = 0;
+            if (entity.dy == 1 && entity.dx == 0) entity.dir = 0;
+            if (entity.dy == 1 && entity.dx == -1) entity.dir = 1;
+            if (entity.dy == -1 && entity.dx == 1) entity.dir = 3;
+            if (entity.dy == -1 && entity.dx == 0) entity.dir = 3;
+            if (entity.dy == -1 && entity.dx == -1) entity.dir = 2;
+            if (entity.dy == 0 && entity.dx == 1) entity.dir = 1;
+            if (entity.dy == 0 && entity.dx == -1) entity.dir = 2;
+
+            entity.ppx += 2*entity.dx;
+            entity.ppy += entity.dy;
+        } 
+
+        if (entity.update) entity.update(entity);
+    }
+}
+
+function updateMovePath_og() {
+
     //var ss = TileToScreen(tt.x, tt.y, 0, 0);
     
     for (var i = 0; i < selected.length; ++i) {
@@ -361,10 +497,91 @@ function updateMovePath()
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// -        PLAYER ECONOMY
+// ---------------------------------------------------------------------------
+var playerEconomy = {};
+playerEconomy.ice = 2000;
+playerEconomy.power = 1200;
+
+// ---------------------------------------------------------------------------
+// -        OTHER COMMAND
+// ---------------------------------------------------------------------------
+function harvesterUpdate(entity) {
+
+    if (entity.mining) {
+        entity.actionTimer.t++;
+        if (entity.actionTimer.t == entity.actionTimer.final) {
+            entity.mining = false;
+            entity.load = 100;
+
+            var ss = TileToScreen(85, 74, 0, 0); // retarget to fort
+            entity.target = { x: ss.x - 96, y: ss.y + 16 };
+            entity.harvestPt = undefined;
+        }
+        return;
+    }
+
+    if (entity.load) {
+        if (entity.ppx == entity.target.x &&
+            entity.ppy == entity.target.y) {
+            entity.load = 0;
+            // Collect resource
+            playerEconomy.ice += 2000;
+        }
+        return;
+    }
+
+    if (entity.harvestPt) {
+
+        // Check and start harvesting
+        var tt = entity.harvestPt;
+        //var ss = TileToScreen(tt.x, tt.y, stage_x, stage_y);
+
+        if (entity.ppx == entity.target.x &&
+            entity.ppy == entity.target.y) {
+                // do harvest
+                map.layers[1].data[tt.x + (tt.y*MAP.tw)] = 1412; // Mined magic
+                map.layers[2].data[tt.x + (tt.y*MAP.tw)] = 0; // Remove resource tag
+                entity.mining = true;
+                entity.actionTimer = { t:0, final: 60 };
+                entity.actionTrigger = undefined;
+            }
+
+    } else {
+        if (entity.r) {
+            ++entity.r;
+        } else {
+            entity.r = 1;
+        }
+        var a = Math.random() * 2 * Math.PI;
+        var x = Math.floor(1.6 * entity.r * Math.cos(a)) + entity.ppx;
+        var y = Math.floor(1.6 * entity.r * Math.sin(a)) + entity.ppy;
+
+        // check if tile is harvestable
+        tt = ScreenToTile(x, y);
+        if (map.layers) cells = map.layers[2].data;
+        var t1 = tcell(tt.x, tt.y);
+        if (t1) {
+            entity.harvestPt = tt;
+            // Move there
+            // var x0 = entity.ppx + stage_x - 32;
+            // var x1 = x0 + 64;
+            // var y0 = entity.ppy + stage_y - 32;
+            // var y1 = y0 + 32;
+            var ss = TileToScreen(tt.x, tt.y, 0, 0);
+            entity.target = { x: ss.x + 64 - 32, y: ss.y + 32 };
+            entity.r = 0;
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // -        BUILD
 // ---------------------------------------------------------------------------
-var buildNames = ['City', 'Factory', 'Airport', 'Supply_S', 'Laboratory', 'Castle', 'Estate'];
+//var buildNames = ['City', 'Factory', 'Airport', 'Supply_S', 'Laboratory', 'Castle', 'Estate'];
+var buildNames = ['City', 'Factory', 'Airport', 'Laboratory', 'City', 'Castle'];
 var colourName = '1';
 var entityBatch = [];
 var standing_prefix = "img/";//Revised_PixVoxel_Wargame/standing_frames";
@@ -374,10 +591,12 @@ function createHarvester(x, y) {
     var ss = TileToScreen(tt.x, tt.y, 0, 0);
 
     entity = {};
-    entity.ppx = ss.x;// + 0.5 * (TILE_WIDTH - entity.img.width);
-    entity.ppy = ss.y;// - entity.img.height + TILE_DEPTH;
+    entity.ppx = ss.x;
+    entity.ppy = ss.y;
     entity.dir = 0;
-            
+    
+    entity.update = harvesterUpdate;
+
     var entityFacing = [];    
     for (var dir = 0; dir < 4; ++ dir) {
         var entityFrames = [];
@@ -448,7 +667,18 @@ function createEntity(t, x, y) {
     // if (t-1 == 3) { //buildNames[t-1] == 'Supply_S') {
     //     selected.push(entity);
     // }
+
+    // Cost
+    var power = build_costs[t][0];
+    var ice = build_costs[t][1];
+    playerEconomy.ice -= ice;
+    playerEconomy.power -= power;
     
+    // Power boost ?
+    if (t == 4) {
+        playerEconomy.power += 1000;
+    }
+
     // The map
     entity.dir_space = [];
     for (var i = 0; i < dir_i; ++i) {

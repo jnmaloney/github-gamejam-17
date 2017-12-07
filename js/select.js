@@ -7,8 +7,6 @@ select.hoverGo = 0;
 function mouseSelect(res, e) {
 
 
-
-
     if (res == 'move') {
         select.hover = undefined;
         var y = 0.5 * (canvas.height - 720) + 122;

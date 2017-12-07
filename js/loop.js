@@ -64,10 +64,37 @@ function gameDraw() {
     ctx.fillStyle = "#bec6d5";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    entityBatch.sort(function(a, b) {return a.ppy - b.ppy});
+
     drawLayer2(0, 0);
     drawLayer2(0, 1);
     drawLayer1(1);
+    drawShade();
     cursorOverlay();
+}
+
+function drawShade() {
+    drawShadeQtr(0, 0, 200, -100);
+    drawShadeQtr(100, 0, 200, 200);
+    drawShadeQtr(100, 100, -100, 200);
+    drawShadeQtr(0, 100, -100, -100);
+}
+
+function drawShadeQtr(a, b, c, d) {
+    var p0, p1, p2, p3;
+    p0 = TileToScreen(a, b, stage_x, stage_y);
+    p1 = TileToScreen(c, b, stage_x, stage_y);
+    p2 = TileToScreen(c, d, stage_x, stage_y);   
+    p3 = TileToScreen(a, d, stage_x, stage_y);
+var x = 32;
+    ctx.beginPath();
+    ctx.moveTo(p0.x+x, p0.y);
+    ctx.lineTo(p1.x+x, p1.y);
+    ctx.lineTo(p2.x+x, p2.y);
+    ctx.lineTo(p3.x+x, p3.y);
+    ctx.closePath();
+    ctx.fillStyle = 'black';
+    ctx.fill();
 }
 
 function notUsed() {
@@ -153,9 +180,36 @@ function cursorOverlay() {
         ctx.stroke();
     }
 
+
+    // Selected unit border highlight
+    ctx.beginPath();
+
+    for (var i = 0; i < selected.length; ++i) {
+        var entity = selected[i];
+
+        // Draw that box
+        var x0 = entity.ppx + stage_x - 32;
+        var x1 = x0 + 64;
+        var x2 = x1 + 64;
+        var y0 = entity.ppy + stage_y - 32;
+        var y1 = y0 + 32;
+        var y2 = y1 + 32;
+        ctx.moveTo(x0, y1);
+        ctx.lineTo(x1, y0);
+        ctx.lineTo(x2, y1);
+        ctx.lineTo(x1, y2);
+        ctx.closePath();
+    }
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#fffea2";
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#fdce76";
+    ctx.stroke();
+    
     // Entities
     for (var i = 0; i < entityBatch.length; ++i) {
-        var entity = entityBatch[i];//[frame%4];
+        var entity = entityBatch[i];
         
         var tile = entity.frames[entity.dir][frame%4];
         width = tile.width;
@@ -174,11 +228,41 @@ function cursorOverlay() {
     var tt = ScreenToTile(currX, currY);
     ctx.fillText(tt.x + ', ' + tt.y, 25, 25);
 
+    ctx.fillText('ice'+playerEconomy.ice + ',    pwr' + playerEconomy.power, canvas.width-125, 25);
+
+    for (var i = 0; i < selected.length; ++i) {
+        var entity = selected[i];
+        ctx.fillText(
+            i + '. ' + entity, 
+            canvas.width-125,
+            225 + 25*i);
+        
+    }
     // Minimap 
 
     // Resources
 
     // UI
+
+    // Selection units
+    if (selectionBox != undefined) {
+        ctx.beginPath();
+        ctx.moveTo(selectionBox.x0, selectionBox.y0);
+        ctx.lineTo(selectionBox.x0, selectionBox.y1);
+        ctx.lineTo(selectionBox.x1, selectionBox.y1);
+        ctx.lineTo(selectionBox.x1, selectionBox.y0);
+        ctx.closePath();
+
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = 'black';
+        ctx.stroke();
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'white';
+        ctx.stroke();
+    }
+
+
 }
 
 
