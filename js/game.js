@@ -23,10 +23,24 @@ function setup() {
         loadTileset(JSON.parse(req.responseText), 1411);
     });
 
+    var enemy_faction = select.faction ? 0 : 2;
+    
     loadFramesBank(select.faction, 'Supply_S');
     loadFramesBank(select.faction, 'Infantry_S');
     loadFramesBank(select.faction, 'Tank_S');
+    
+    loadFramesBank(enemy_faction, 'Supply_S');
+    loadFramesBank(enemy_faction, 'Infantry_S');
+    loadFramesBank(enemy_faction, 'Tank_S');
+    
+    var factions = [select.faction, enemy_faction];
+    for (var i in factions) {
+        for (var j in buildNames) {
+            loadFramesBank(factions[i], buildNames[j]);
+        }
+    }
 
+    
 
     var src = 'maps/new_map.json';
     get(src, function(req) {
@@ -48,27 +62,28 @@ function setup() {
             TILE_WIDTH = 64;
             TILE_DEPTH = 32;
             var ss = TileToScreen(84, 74, stage_x, stage_y);
-            createEntity(1, ss.x, ss.y);
+            createEntity(1, ss.x, ss.y, select.faction);
             ss = TileToScreen(84, 76, stage_x, stage_y);
-            createEntity(6, ss.x, ss.y);
+            createEntity(6, ss.x, ss.y, select.faction);
 
             stage_x = -ss.x + 0.5 * canvas.width;
             stage_y = -ss.y + 0.5 * canvas.height;
 
             ss = TileToScreen(84, 79, stage_x, stage_y);
-            createHarvester(ss.x, ss.y);
+            createHarvester(ss.x, ss.y, select.faction);
             ss = TileToScreen(87, 79, stage_x, stage_y);
-            createHarvester(ss.x, ss.y);
+            createHarvester(ss.x, ss.y, select.faction);
             ss = TileToScreen(79, 82, stage_x, stage_y);
-            createAttackUnit(ss.x, ss.y, 'Infantry_S');
+            createAttackUnit(ss.x, ss.y, 'Infantry_S', select.faction);
             ss = TileToScreen(89, 82, stage_x, stage_y);
-            createAttackUnit(ss.x, ss.y, 'Tank_S');
+            createAttackUnit(ss.x, ss.y, 'Tank_S', select.faction);
 
+            // TEST
+            // Create Enemy Base
+            ss = TileToScreen(47, 70, stage_x, stage_y);
+            createEntity(1, ss.x, ss.y, enemy_faction);
 
         });
-
-
-
 
 }
 
@@ -262,7 +277,7 @@ function mouseGame(res, e) {
             if (control.move) {
                 moveCommand(currX, currY);
             } else if (place) {
-                createEntity(place, currX, currY);
+                createEntity(place, currX, currY, select.faction);
                 place = 0;
             } else {
                 selectionBox = { x0: x, y0: y, x1: x, y1: y };
@@ -329,6 +344,7 @@ function doSelection(selectBox) {
 
     for (var i = 0; i < entityBatch.length; ++i) {
         var entity = entityBatch[i];
+        if (entity.faction != select.faction) continue;
         var r0 = [32, 16];
         var c0 = [entity.ppx + stage_x + 32, entity.ppy + stage_y];
         if (testAABBAABB({c:c0, r:r0}, {c:c1, r:r1})) {
@@ -720,9 +736,38 @@ function harvesterUpdate(entity) {
 }
 
 
-function attackUnitUpdate(entity) {
+function dist2(a, b) {
+    return (a.ppx - b.ppx) * (a.ppx - b.ppx) +
+           (a.ppy - b.ppy) * (a.ppy - b.ppy); 
 }
+function attackUnitUpdate(entity) {
 
+    // Find nearby enemy?
+    entity.fireUpon = undefined;
+    var range = (10*64)*(10*64);
+    for (var i in entityBatch) {
+        if (entityBatch[i].faction == entity.faction) continue;
+        if (dist2(entity, entityBatch[i]) < range) {
+            entity.fireUpon = entityBatch[i];
+        }
+    }
+
+
+    // Check if idle or shoot
+    if (entity.fireUpon) {
+        if (!(entity.state == firing)) {
+            fire(entity);
+        }  
+    } else {
+        entity.state = undefined;
+    }
+}
+var firing = {
+    frames: [],
+};
+function fire(entity) {
+    entity.state = firing;
+}
 
 
 // ---------------------------------------------------------------------------
@@ -779,7 +824,7 @@ function loadFramesBank(colorName, unitName) {
     framesBank[colorName][unitName] = entityFacing;
 }
 
-function createAttackUnit(x, y, name) {
+function createAttackUnit(x, y, name, faction) {
     var tt = ScreenToTile(x, y);
     var ss = TileToScreen(tt.x, tt.y, 0, 0);
 
@@ -788,10 +833,12 @@ function createAttackUnit(x, y, name) {
     entity.ppy = ss.y;
     entity.dir = 0;
     entity.canMove = true;
+    entity.faction = faction;
+    entity.name = name;
     
-    entity.update = undefined;
+    entity.update = attackUnitUpdate;
     
-    entity.frames = framesBank[select.faction][name];
+    entity.frames = framesBank[faction][name];
 
     entityBatch.push(entity);
 
@@ -804,7 +851,7 @@ function createAttackUnit(x, y, name) {
 }
 
 
-function createHarvester(x, y) {
+function createHarvester(x, y, faction) {
     var tt = ScreenToTile(x, y);
     var ss = TileToScreen(tt.x, tt.y, 0, 0);
 
@@ -813,16 +860,19 @@ function createHarvester(x, y) {
     entity.ppy = ss.y;
     entity.dir = 0;
     entity.canMove = true;
+    entity.faction = faction;
 
     entity.update = harvesterUpdate;
     
-    entity.frames = framesBank[select.faction]['Supply_S'];
+    entity.frames = framesBank[faction]['Supply_S'];
 
     entityBatch.push(entity);
 
     entity.dir = Math.floor(Math.random() * 4);
     
     entity.speed = 1;
+
+    return entity;
 }
 
 // ---------------------------------------------------------------------------
@@ -842,13 +892,36 @@ function commandBuildCity() {
 
 
 
+function collideUnit(entity) {
+    var a = { 
+        c: [entity.ppx, entity.ppy], 
+        r: [64, 32] };
+    for (var j = 0; j < entityBatch.length; ++j) {
+        var otherEntity = entityBatch[j];
+        if (otherEntity == entity) continue;
+        if (!otherEntity.canMove) continue;
+        var b = { 
+            c: [otherEntity.ppx, otherEntity.ppy], 
+            r: [20, 10] };
+        var test = testAABBAABB(a, b);
+        if (test) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function updateBarracks(entity) {
     for (var i = 0; i < entity.supply.length; ++i) {
         if (entity.supply[i] == undefined) {
+            if (collideUnit(entity)) continue;
             entity.supply[i] = createAttackUnit(
                 entity.ppx + stage_x, 
-                entity.ppy + stage_y - 32*(i+1), 
-                'Infantry_S');
+                entity.ppy + stage_y, 
+                'Infantry_S',
+                entity.faction);
+            //entity.supply[i].target = { x: entity.ppx, y: entity.ppy - 64 };
+            break;
         }
     }
 }
@@ -859,7 +932,8 @@ function updateFactory(entity)  {
             entity.supply[i] = createAttackUnit(
                 entity.ppx + stage_x, 
                 entity.ppy + stage_y - 32*(i+1), 
-                'Tank_S');
+                'Tank_S',
+                entity.faction);
         }
     }
 }
@@ -867,7 +941,7 @@ function updateFactory(entity)  {
 // ---------------------------------------------------------------------------
 // -        BUILDINGS
 // ---------------------------------------------------------------------------
-function createEntity(t, x, y) { 
+function createEntity(t, x, y, faction) { 
     
     var tt = ScreenToTile(x, y);
 
@@ -886,24 +960,31 @@ function createEntity(t, x, y) {
     entity.ppx = ss.x;// + 0.5 * (TILE_WIDTH - entity.img.width);
     entity.ppy = ss.y;// - entity.img.height + TILE_DEPTH;
     entity.dir = 0;
-            
-    var entityFacing = [];    
-    for (var dir = 0; dir < 4; ++ dir) {
-        var entityFrames = [];
+    
+    entity.faction = faction;
 
-        standing_prefix = "_img/";
+    // TODO B
+    var unitName = buildNames[t-1];
+    colourName = ''+faction;
+    entity.frames = framesBank[colourName][unitName];
+    
+    // //entity.frames = framesBank[faction][];
+    // var entityFacing = [];    
+    // for (var dir = 0; dir < 4; ++ dir) {
+    //     var entityFrames = [];
 
-        for (var i = 0; i < 4; ++i) {
+    //     standing_prefix = "_img/";
 
-            var img = new Image();
-            colourName = select.faction;
-            img.src = standing_prefix + "color"+colourName+"/"+buildNames[t-1]+"_Large_face"+dir+"_"+i+".png";
+    //     for (var i = 0; i < 4; ++i) {
 
-            entityFrames.push(img);
-        }
-        entityFacing.push(entityFrames);
-    }
-    entity.frames = entityFacing;
+    //         var img = new Image();
+    //         img.src = standing_prefix + "color"+colourName+"/"+buildNames[t-1]+"_Large_face"+dir+"_"+i+".png";
+
+    //         entityFrames.push(img);
+    //     }
+    //     entityFacing.push(entityFrames);
+    // }
+    // entity.frames = entityFacing;
 
     entityBatch.push(entity);
     

@@ -263,7 +263,7 @@ function cursorOverlay() {
     for (var i = 0; i < entityBatch.length; ++i) {
         var entity = entityBatch[i];
         
-        var tile = entity.frames[entity.dir][frame%4];
+        var tile = getEntityTile(entity);
         width = tile.width;
         height = tile.height;
         
@@ -336,6 +336,23 @@ function cursorOverlay() {
     }
 
 
+}
+
+
+function getEntityTile(entity) {
+    if (entity.state == firing) {
+
+        var img = new Image();
+        var i = frame % 16;
+        var anim_prefix = "_img/color"+0+"_"+entity.name+"/";
+        img.src = anim_prefix + "color"+0+"_"+entity.name+"_Large_face"+entity.dir+"_attack_0_"+i+".png";
+        console.log(img.src);
+        return img;
+
+    } else {
+        return entity.frames[entity.dir][frame%4];
+
+    }
 }
 
 
