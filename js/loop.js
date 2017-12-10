@@ -160,8 +160,60 @@ function notUsed() {
     }
 }
 
+
+var placementMap = [];
+function canPlace(i, j) {
+    if (placementMap[i-1] == undefined) return 1;
+    return placementMap[i-1][j+2];
+}
+
+
+function cursorOverlay1(i, j) {
+    var p = canPlace(i, j);
+    var ss = TileToScreen(i, j, stage_x, stage_y);
+    var x0 = ss.x;
+    var x1 = x0 + 32;
+    var x2 = x1 + 32;
+    var y0 = ss.y;
+    var y1 = y0 + 16;
+    var y2 = y1 + 16;
+
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "#f0f";
+    if (p == 0) ctx.fillStyle = "#0f0";
+    if (p == 1) ctx.fillStyle = "#ff0";
+    if (p == 2) ctx.fillStyle = "#f00";
+
+    ctx.beginPath();
+    ctx.moveTo(x0, y1);
+    ctx.lineTo(x1, y0);
+    ctx.lineTo(x2, y1);
+    ctx.lineTo(x1, y2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+}
+
+var quickKeyMap  = {
+    'a': 'Z',
+    'b': 'X',
+    'c': 'C',
+    'd': 'V',
+    'e': 'B',
+} 
+
 function cursorOverlay() {
-    // Cursor
+
+    // building placement blocks
+    if (place) {
+        var tt = ScreenToTile(currX, currY);
+        cursorOverlay1(tt.x, tt.y);
+        cursorOverlay1(tt.x+1, tt.y);
+        cursorOverlay1(tt.x, tt.y+1);
+        cursorOverlay1(tt.x+1, tt.y+1);
+    }
+
+    // Cursor - building placement
     if (place) {
         var tt = ScreenToTile(currX, currY);
         var ss = TileToScreen(tt.x, tt.y, stage_x, stage_y);
@@ -228,16 +280,37 @@ function cursorOverlay() {
     var tt = ScreenToTile(currX, currY);
     ctx.fillText(tt.x + ', ' + tt.y, 25, 25);
 
+    // HUD
     ctx.fillText('ice'+playerEconomy.ice + ',    pwr' + playerEconomy.power, canvas.width-125, 25);
 
+    var y0 = 225;
     for (var i = 0; i < selected.length; ++i) {
         var entity = selected[i];
+        var str = '';
+        if (entity.name) str = entity.name;
+        else str = entity;
         ctx.fillText(
-            i + '. ' + entity, 
+            i+1 + '. ' + str, 
             canvas.width-125,
-            225 + 25*i);
-        
+            y0);
+
+        y0 += 25;
+
+        if (entity.control) {
+            for (var j in entity.control) {
+                if (entity.control[j]) {
+                str = entity.control[j][0];
+                    ctx.fillText(
+                        '[' + quickKeyMap[j] + ']  ' + str, 
+                        canvas.width-125,
+                        y0);
+            
+                    y0 += 25;
+                }
+            }
+        }
     }
+
     // Minimap 
 
     // Resources

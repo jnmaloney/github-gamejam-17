@@ -1,0 +1,30 @@
+{ "columns":0,
+ "grid":
+    {
+     "height":1,
+     "orientation":"orthogonal",
+     "width":1
+    },
+ "margin":0,
+ "name":"Border Tiles",
+ "spacing":0,
+ "tilecount":2,
+ "tileheight":34,
+ "tiles":
+    {
+     "0":
+        {
+         "image":"_img\/terrain\/crack1.png",
+         "imageheight":90,
+         "imagewidth":128
+        },
+     "1":
+        {
+         "image":"_img\/terrain\/mined_tile.png",
+         "imageheight":90,
+         "imagewidth":128
+        }
+    },
+ "tilewidth":64,
+ "type":"tileset"
+}

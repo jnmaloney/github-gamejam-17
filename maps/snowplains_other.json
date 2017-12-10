@@ -1,0 +1,12 @@
+{ "columns":16,
+ "image":"snowplains_other.png",
+ "imageheight":1792,
+ "imagewidth":1024,
+ "margin":0,
+ "name":"snowplains_other",
+ "spacing":0,
+ "tilecount":896,
+ "tileheight":32,
+ "tilewidth":64,
+ "type":"tileset"
+}

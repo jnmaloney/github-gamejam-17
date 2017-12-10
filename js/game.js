@@ -11,7 +11,7 @@ function setup() {
 
     // Load tilesets
     get('maps/snowplains_other_min.json', function(req) {
-        loadTileset(JSON.parse(req.responseText), 817); //513);
+        loadTileset(JSON.parse(req.responseText), 817);
     });
     get('maps/SnowTile.json', function(req) {
         loadTileset(JSON.parse(req.responseText), 1);
@@ -23,26 +23,51 @@ function setup() {
         loadTileset(JSON.parse(req.responseText), 1411);
     });
 
+    loadFramesBank(select.faction, 'Supply_S');
+    loadFramesBank(select.faction, 'Infantry_S');
+    loadFramesBank(select.faction, 'Tank_S');
+
 
     var src = 'maps/new_map.json';
     get(src, function(req) {
             loadMap(JSON.parse(req.responseText));
+
+            //  little load hack
+            for (var i = 0; i < MAP.tw; ++i) {
+                for (var j = 0; j < MAP.th; ++j) {
+                    if (map.layers[0].data[i + (j*MAP.tw)] > 0) { // ?
+                        setPlacementMap(i, j, 0);
+                        setPlacementMap(i+1, j, 0);
+                        setPlacementMap(i, j+1, 0);
+                        setPlacementMap(i+1, j+1, 0);
+                    }
+                }
+            }
+
+            // Create base
+            TILE_WIDTH = 64;
+            TILE_DEPTH = 32;
+            var ss = TileToScreen(84, 74, stage_x, stage_y);
+            createEntity(1, ss.x, ss.y);
+            ss = TileToScreen(84, 76, stage_x, stage_y);
+            createEntity(6, ss.x, ss.y);
+
+            stage_x = -ss.x + 0.5 * canvas.width;
+            stage_y = -ss.y + 0.5 * canvas.height;
+
+            ss = TileToScreen(84, 79, stage_x, stage_y);
+            createHarvester(ss.x, ss.y);
+            ss = TileToScreen(87, 79, stage_x, stage_y);
+            createHarvester(ss.x, ss.y);
+            ss = TileToScreen(79, 82, stage_x, stage_y);
+            createAttackUnit(ss.x, ss.y, 'Infantry_S');
+            ss = TileToScreen(89, 82, stage_x, stage_y);
+            createAttackUnit(ss.x, ss.y, 'Tank_S');
+
+
         });
 
-    // Create base
-    TILE_WIDTH = 64;
-    TILE_DEPTH = 32;
-    var ss = TileToScreen(85, 74, stage_x, stage_y);
-    createEntity(1, ss.x, ss.y);
-    ss = TileToScreen(85, 78, stage_x, stage_y);
-    createHarvester(ss.x, ss.y);
-    ss = TileToScreen(87, 78, stage_x, stage_y);
-    createHarvester(ss.x, ss.y);
 
-    ss = TileToScreen(85, 76, stage_x, stage_y);
-    createEntity(6, ss.x, ss.y);
-    stage_x = -ss.x + 0.5 * canvas.width;
-    stage_y = -ss.y + 0.5 * canvas.height;
 
 
 }
@@ -68,7 +93,7 @@ function loadMap(mapJson) {
 
 
 function loadTileset(response, offset) {
-    console.log(response);
+    //console.log(response);
 
     var standing_prefix = 'maps/';
 
@@ -78,10 +103,9 @@ function loadTileset(response, offset) {
         for (var key in tileSrc) {
             var img = new Image();
             var src = response.tiles[key].image;
-            console.log(src);
             img.src = src;
             tiles[Math.floor(key)+offset] = img;
-            console.log(Math.floor(key)+offset);
+            //console.log(Math.floor(key)+offset);
         }
     } 
 
@@ -89,9 +113,7 @@ function loadTileset(response, offset) {
         var imgTile = {};
         imgTile.img = new Image();
         imgTile.img.src = standing_prefix + response.image;
-        
-        console.log( imgTile.img.src);
-        
+                
         imgTile.begin = offset;
         imgTile.end = offset + response.tilecount;
         imgTile.tilewidth = response.tilewidth;
@@ -148,30 +170,56 @@ down.press = function() {
 down.release = function() {
 }
 abutton.press = function() {
-    tryBuild(0);
+    //tryBuild(0);
+    doSelectionCommand('a');
 }
 abutton.release = function() {
 }
 bbutton.press = function() {
-    tryBuild(1);
+    //tryBuild(1);
+    doSelectionCommand('b');
 }
 cbutton.press = function() {
-    tryBuild(2);
+    //tryBuild(2);
+    doSelectionCommand('c');
 }
 dbutton.press = function() {
-    tryBuild(3);
+    //tryBuild(3);
+    doSelectionCommand('d');
 }
 ebutton.press = function() {
-    //place = 5; //
-    tryBuild(4);
+    //tryBuild(4);
+    doSelectionCommand('e');
+}
+
+function doSelectionCommand(key)
+{
+    for (var i in selected)
+        if (selected[i].control && selected[i].control[key])
+            selected[i].control[key][1]();
 }
 fbutton.press = function() {
-    place = 6;
 }
 control = {};
 gbutton.press = function() {
-    //place = 7;
-	control.move = true;
+    tryCommandMove();
+}
+
+var cursors = {
+    move: 'crosshair'
+};
+function tryCommandMove() {
+    if (canCommandMove()) {
+        control.move = true;
+        canvas.style.cursor = cursors.move;
+    }
+}
+
+function canCommandMove() {
+    for (var i = 0; i < entityBatch.length; ++i) {
+        if (entityBatch[i].update) return true;
+    }
+    return false;
 }
 
 var flag = false,
@@ -211,7 +259,14 @@ function mouseGame(res, e) {
         var y = currY;
         //if (selectionBox == undefined) {
         if (res == 'down') {
-            selectionBox = { x0: x, y0: y, x1: x, y1: y };
+            if (control.move) {
+                moveCommand(currX, currY);
+            } else if (place) {
+                createEntity(place, currX, currY);
+                place = 0;
+            } else {
+                selectionBox = { x0: x, y0: y, x1: x, y1: y };
+            }
         }
         if (res == 'move' && selectionBox) {
             selectionBox.x1 = x;
@@ -236,17 +291,10 @@ function mouseGame(res, e) {
             clickX = currX;
             clickY = currY;
 
-            if (control.move) {
-                moveCommand(currX, currY);
-            } else if (place) {
-                createEntity(place, currX, currY);
-                place = 0;
-            } else {
-                flag = true;
-                dot_flag = true;
-                if (dot_flag) {
-                    dot_flag = false;
-                }
+            flag = true;
+            dot_flag = true;
+            if (dot_flag) {
+                dot_flag = false;
             }
         }
 
@@ -285,6 +333,19 @@ function doSelection(selectBox) {
         var c0 = [entity.ppx + stage_x + 32, entity.ppy + stage_y];
         if (testAABBAABB({c:c0, r:r0}, {c:c1, r:r1})) {
             selected.push(entity);
+            if (selectBox.x0 == selectBox.x1 && selectBox.y0 == selectBox.y1) break; // click to pick
+        }
+    }
+
+    // Clean up
+    for (var i = 0; i < selected.length; ++i) {
+        if (selected[i].canMove) {
+            // Remove entities without canMove
+            for (var j = 0; j < selected.length; ) {
+                if (selected[j].canMove) ++j
+                else selected.splice(j, 1);
+            }
+            break;
         }
     }
 }
@@ -306,30 +367,33 @@ function intersect(A,B,C,D) {
     return ccw(A,C,D) != ccw(B,C,D) && ccw(A,B,C) != ccw(A,B,D);
 }
 
-function selectClick(x0, y0, x1, y1) {
+function selectClick_unused(x0, y0, x1, y1) {
     selected = [];
 
     // rect collide every entity
     for (var i = 0; i < entityBatch.length; ++i) {
         var entity = entityBatch[i];
-        // rect/diamond select
-        // var ex0 = 0;
-        // var ex1 = 0;
-        // var ex2 = 0;
-        // var ey0 = 0;
-        // var ey1 = 0;
-        // var ey2 = 0;
-        // var i0 = intersect({x:x0, y:y0}, {x:x0, y:y1}, {x:ex0, y:ey0}, {x:ex0, y:ey1});
 
         if (entity.ppx > x0 - 16 &&
             entity.ppx < x1 + 16 &&
             entity.ppy < y0 - 16 &&
             entity.ppy > y1 + 16 ) {
                 selected.push(entity);
+                
             }
     }
 
     // Clean up
+    for (var i in selected) {
+        if (selected.canMove) {
+            // Remove entities without canMove
+            for (var j = 0; j < selected.length; ) {
+                if (selected[j].canMove) ++j
+                else selected.splice(j, 1);
+            }
+            break;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -362,6 +426,7 @@ var selected = [];
 var dir_i = 100, dir_j = 100;
 function moveCommand(sx, sy) {
     control.move = false;
+    canvas.style.cursor = '';
     
     var tt = ScreenToTile(sx, sy);
 
@@ -370,30 +435,23 @@ function moveCommand(sx, sy) {
 
     for (var k = 0; k < selected.length; ++k) {
     
-        var z = Math.floor(Math.sqrt(selected.length) + 1);
-        var o_x = k % z;
-        var o_y = Math.floor(k / z);
-    
-        for (var i = 0; i < dir_i; ++i) {
-            for (var j = 0; j < dir_j; ++j) {
-                dx = 0; dy = 0;
-                if (i+o_x > tt.x) { dx += -1; dy += -1; }
-                else if (i+o_x < tt.x) { dx += 1; dy += 1; }
-                if (j+o_y > tt.y) { dx += 1; dy += -1; }
-                else if (j+o_y < tt.y) { dx += -1; dy += 1; }
-                selected[k].dir_space[i][j].x = dx;
-                selected[k].dir_space[i][j].y = dy;
-            }
-        }
+        selected[k].target = { x: sx - stage_x, y: sy - stage_y };
+
     }
 }
+
 
 function updateMovePath() {
     for (var i = 0; i < entityBatch.length; ++i) {
         var entity = entityBatch[i];
+        if (entity.update) entity.update(entity);
+        
+        if (!entity.canMove) continue;
         if (entity.target) {
             entity.dx = 0;
             entity.dy = 0;
+
+            // Hone in on target
             if (entity.ppx <= entity.target.x - 1) entity.dx += 1;
             else if (entity.ppx >= entity.target.x + 1) entity.dx -= 1;
             else { entity.ppx = entity.target.x; entity.dx = 0; }
@@ -402,20 +460,104 @@ function updateMovePath() {
             else if (entity.ppy > entity.target.y + 1) entity.dy -= 1;
             else { entity.ppy = entity.target.y; entity.dy = 0; }
 
+            entity.dxss = 2 * entity.speed * entity.dx;
+            entity.dyss = entity.speed * entity.dy;
+
+            // Check for other entity collisions
+            var brake = false;
+            for (var j = 0; j < entityBatch.length; ++j) {
+                if (i == j) continue;
+                var otherEntity = entityBatch[j];
+                var a = { 
+                    c: [entity.ppx + entity.dxss, entity.ppy + entity.dyss], 
+                    r: [20, 10] };
+                var b = { 
+                    c: [otherEntity.ppx, otherEntity.ppy], 
+                    r: [20, 10] };
+                var test = testAABBAABB(a, b);
+                if (test) {
+                    brake = true;
+                    break;
+                }
+            }
+            if (brake) {
+                // check cancel brake
+                for (var j = 0; j < entityBatch.length; ++j) {
+                    if (i == j) continue;
+                    var otherEntity = entityBatch[j];
+                    if (otherEntity.canMove) continue;
+                    var a = { 
+                        c: [entity.ppx, entity.ppy], 
+                        r: [20, 10] };
+                    var b = { 
+                        c: [otherEntity.ppx, otherEntity.ppy], 
+                        r: [20, 10] };
+                    var test = testAABBAABB(a, b);
+                    if (test) {
+                        brake = false;
+                        break;
+                    }
+                }
+            }
+            if (brake) { // dx
+                brake = false;
+                for (var j = 0; j < entityBatch.length; ++j) {
+                    if (i == j) continue;
+                    var otherEntity = entityBatch[j];
+                    var a = { 
+                        c: [entity.ppx, entity.ppy + entity.dyss], 
+                        r: [20, 10] };
+                    var b = { 
+                        c: [otherEntity.ppx, otherEntity.ppy], 
+                        r: [20, 10] };
+                    var test = testAABBAABB(a, b);
+                    if (test) {
+                        brake = true;
+                        break;
+                    }
+                }
+                if (!brake) entity.dx = 0;
+                else { // dy
+                    brake = false;
+                    for (var j = 0; j < entityBatch.length; ++j) {
+                        if (i == j) continue;
+                        var otherEntity = entityBatch[j];
+                        var a = { 
+                            c: [entity.ppx + entity.dxss, entity.ppy], 
+                            r: [20, 10] };
+                        var b = { 
+                            c: [otherEntity.ppx, otherEntity.ppy], 
+                            r: [20, 10] };
+                        var test = testAABBAABB(a, b);
+                        if (test) {
+                            brake = true;
+                            break;
+                        }
+                    }
+                    if (!brake) entity.dy = 0;
+                    else { entity.dx = 0; entity.dy = 0; } // neither
+                }
+            }
+
+            entity.dxss = 2 * entity.speed * entity.dx;
+            entity.dyss = entity.speed * entity.dy;
+
+            // Adjust facing sprite
             if (entity.dy == 1 && entity.dx == 1) entity.dir = 0;
-            if (entity.dy == 1 && entity.dx == 0) entity.dir = 0;
+            if (entity.dy == 1 && entity.dx == 0) entity.dir = 1;
             if (entity.dy == 1 && entity.dx == -1) entity.dir = 1;
             if (entity.dy == -1 && entity.dx == 1) entity.dir = 3;
             if (entity.dy == -1 && entity.dx == 0) entity.dir = 3;
             if (entity.dy == -1 && entity.dx == -1) entity.dir = 2;
-            if (entity.dy == 0 && entity.dx == 1) entity.dir = 1;
+            if (entity.dy == 0 && entity.dx == 1) entity.dir = 0;
             if (entity.dy == 0 && entity.dx == -1) entity.dir = 2;
 
-            entity.ppx += 2*entity.dx;
-            entity.ppy += entity.dy;
+            // Apply map direction
+            if (Math.abs(entity.ppx - entity.target.x) < entity.dxss) entity.ppx = entity.target.x;
+            else entity.ppx += entity.dxss;
+            if (Math.abs(entity.ppy - entity.target.y) < entity.dyss) entity.ppy = entity.target.y;
+            else entity.ppy += entity.dyss;
         } 
-
-        if (entity.update) entity.update(entity);
     }
 }
 
@@ -577,16 +719,23 @@ function harvesterUpdate(entity) {
     }
 }
 
+
+function attackUnitUpdate(entity) {
+}
+
+
+
 // ---------------------------------------------------------------------------
 // -        BUILD
 // ---------------------------------------------------------------------------
 //var buildNames = ['City', 'Factory', 'Airport', 'Supply_S', 'Laboratory', 'Castle', 'Estate'];
-var buildNames = ['City', 'Factory', 'Airport', 'Laboratory', 'City', 'Castle'];
+var buildNames = ['Estate', 'Factory', 'Airport', 'Laboratory', 'City', 'Castle'];
 var colourName = '1';
 var entityBatch = [];
 var standing_prefix = "img/";//Revised_PixVoxel_Wargame/standing_frames";
 
-function createHarvester(x, y) {
+
+function createUnit(x, y) {
     var tt = ScreenToTile(x, y);
     var ss = TileToScreen(tt.x, tt.y, 0, 0);
 
@@ -594,8 +743,22 @@ function createHarvester(x, y) {
     entity.ppx = ss.x;
     entity.ppy = ss.y;
     entity.dir = 0;
-    
-    entity.update = harvesterUpdate;
+
+    entity.update = undefined;
+
+    // TODO - render type = unit
+}
+
+
+// ---------------------------------------------------------------------------
+// -        BANK OF ANIMATION FRAMES
+// ---------------------------------------------------------------------------
+var framesBank = [];
+
+function loadFramesBank(colorName, unitName) {
+    if (framesBank[colorName] == undefined) {
+        framesBank[colorName] = {};
+    }
 
     var entityFacing = [];    
     for (var dir = 0; dir < 4; ++ dir) {
@@ -606,37 +769,117 @@ function createHarvester(x, y) {
         for (var i = 0; i < 4; ++i) {
 
             var img = new Image();
-            colourName = select.faction;
-            img.src = standing_prefix + "color"+colourName+"/"+"Supply_S"+"_Large_face"+dir+"_"+i+".png";
+            img.src = standing_prefix + "color"+colorName+"/"+unitName+"_Large_face"+dir+"_"+i+".png";
 
             entityFrames.push(img);
         }
         entityFacing.push(entityFrames);
     }
-    entity.frames = entityFacing;
+
+    framesBank[colorName][unitName] = entityFacing;
+}
+
+function createAttackUnit(x, y, name) {
+    var tt = ScreenToTile(x, y);
+    var ss = TileToScreen(tt.x, tt.y, 0, 0);
+
+    entity = {};
+    entity.ppx = ss.x;
+    entity.ppy = ss.y;
+    entity.dir = 0;
+    entity.canMove = true;
+    
+    entity.update = undefined;
+    
+    entity.frames = framesBank[select.faction][name];
+
+    entityBatch.push(entity);
+
+    entity.dir = Math.floor(Math.random() * 4);
+
+    entity.speed = 1.15;
+    if (name == 'Infantry_S') entity.speed = 1.8;
+
+    return entity;
+}
+
+
+function createHarvester(x, y) {
+    var tt = ScreenToTile(x, y);
+    var ss = TileToScreen(tt.x, tt.y, 0, 0);
+
+    entity = {};
+    entity.ppx = ss.x;
+    entity.ppy = ss.y;
+    entity.dir = 0;
+    entity.canMove = true;
+
+    entity.update = harvesterUpdate;
+    
+    entity.frames = framesBank[select.faction]['Supply_S'];
 
     entityBatch.push(entity);
 
     entity.dir = Math.floor(Math.random() * 4);
     
-    selected.push(entity);
-    
-    // The map
-    entity.dir_space = [];
-    for (var i = 0; i < dir_i; ++i) {
-        entity.dir_space.push([]);
-        for (var j = 0; j < dir_j; ++j) {
-            entity.dir_space[i].push( {
-                x: 0,
-                y: 0,
-            });
+    entity.speed = 1;
+}
+
+// ---------------------------------------------------------------------------
+// -        BUILDINGS
+// ---------------------------------------------------------------------------
+function commandBuildBarracks() {
+    tryBuild(0);
+}
+
+function commandBuildFactory() {
+    tryBuild(1);
+}
+
+function commandBuildCity() {
+    tryBuild(4);
+}
+
+
+
+function updateBarracks(entity) {
+    for (var i = 0; i < entity.supply.length; ++i) {
+        if (entity.supply[i] == undefined) {
+            entity.supply[i] = createAttackUnit(
+                entity.ppx + stage_x, 
+                entity.ppy + stage_y - 32*(i+1), 
+                'Infantry_S');
         }
     }
 }
 
+function updateFactory(entity)  {
+    for (var i = 0; i < entity.supply.length; ++i) {
+        if (entity.supply[i] == undefined) {
+            entity.supply[i] = createAttackUnit(
+                entity.ppx + stage_x, 
+                entity.ppy + stage_y - 32*(i+1), 
+                'Tank_S');
+        }
+    }
+}
 
-function createEntity(t, x, y) {
+// ---------------------------------------------------------------------------
+// -        BUILDINGS
+// ---------------------------------------------------------------------------
+function createEntity(t, x, y) { 
+    
     var tt = ScreenToTile(x, y);
+
+    // Check build tiles
+    if (canPlace(tt.x, tt.y) != 0) return; 
+    if (canPlace(tt.x+1, tt.y) != 0) return;
+    if (canPlace(tt.x, tt.y+1) != 0) return;
+    if (canPlace(tt.x+1, tt.y+1) != 0) return;
+    
+    // y hack
+    y += 32;
+    tt = ScreenToTile(x, y);
     var ss = TileToScreen(tt.x, tt.y, 0, 0);
 
     entity = {};
@@ -664,33 +907,62 @@ function createEntity(t, x, y) {
 
     entityBatch.push(entity);
     
-    // if (t-1 == 3) { //buildNames[t-1] == 'Supply_S') {
-    //     selected.push(entity);
-    // }
-
     // Cost
-    var power = build_costs[t][0];
-    var ice = build_costs[t][1];
+    var power = 0;//build_costs[t][0];
+    var ice = 0;//build_costs[t][1];
     playerEconomy.ice -= ice;
     playerEconomy.power -= power;
     
+    // Some more builds
+    if (t-1 == 0) {
+        entity.name = 'Barracks';
+        entity.supply = [undefined, undefined, undefined];
+        entity.update = updateBarracks;
+    }
+    if (t-1 == 1) {
+        entity.name = 'Factory';
+        entity.supply = [undefined, undefined];
+        entity.update = updateFactory;
+    }
+
+    // Palace Build Machine
+    if (t-1 == 5) {
+        entity.update = undefined;
+        entity.name = 'Palace';
+        entity.control = {
+            'a': undefined, 
+            'b': undefined,
+            'c': ['Build Barracks', commandBuildBarracks],
+            'd': ['Build Factory', commandBuildFactory],
+            'e': ['Build Power', commandBuildCity],
+        };
+    }
+
     // Power boost ?
-    if (t == 4) {
+    if (t-1 == 4) {
+        entity.name = 'Power';
         playerEconomy.power += 1000;
     }
 
-    // The map
-    entity.dir_space = [];
-    for (var i = 0; i < dir_i; ++i) {
-        entity.dir_space.push([]);
-        for (var j = 0; j < dir_j; ++j) {
-            entity.dir_space[i].push( {
-                x: 0,
-                y: 0,
-            });
-        }
-    }
+    // Clear out building space
+    var i = tt.x - 2, j = tt.y + 1;
+    setPlacementMap(i, j, 2);
+    setPlacementMap(i+1, j, 2);
+    setPlacementMap(i, j+1, 2);
+    setPlacementMap(i+1, j+1, 2);
+
+    // reset
+    place = 0;
 }
+
+// ---------------------------------------------------------------------------
+// -        PLACEMENT HACK
+// ---------------------------------------------------------------------------
+function setPlacementMap(i, j, v) {
+    if (placementMap[i] == undefined) placementMap[i] = [];
+    placementMap[i][j] = v;
+}
+
 
 // ---------------------------------------------------------------------------
 // -        LOAD THE MAP
