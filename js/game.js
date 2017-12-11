@@ -997,6 +997,7 @@ function updateBarracks(entity) {
                 'Infantry_S',
                 entity.faction);
             //entity.supply[i].target = { x: entity.ppx, y: entity.ppy - 64 };
+            entity.supply[i].parent = entity;
             break;
         }
     }
@@ -1005,11 +1006,14 @@ function updateBarracks(entity) {
 function updateFactory(entity)  {
     for (var i = 0; i < entity.supply.length; ++i) {
         if (entity.supply[i] == undefined) {
+            if (collideUnit(entity)) continue;
             entity.supply[i] = createAttackUnit(
                 entity.ppx + stage_x, 
                 entity.ppy + stage_y - 32*(i+1), 
                 'Tank_S',
                 entity.faction);
+            entity.supply[i].parent = entity;
+            break;
         }
     }
 }

@@ -55,6 +55,21 @@ loop();
 
 
 function gameState(dt) {
+    // Remove exploded entities
+    for (var i in entityBatch) {
+        var e = entityBatch[i];
+        if (e.hp <= 0 && (frameTick - e.frameOffset) > 64) {
+            entityBatch.splice(i, 1);
+            if (e.parent) {
+                for (var j in e.parent.supply) {
+                    if (e.parent.supply[j] == e) {
+                        e.parent.supply[j] = undefined;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 
