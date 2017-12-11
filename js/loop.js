@@ -43,7 +43,7 @@ function loop() {
     while(delta > interval) {
         delta -= interval;
         gameEngineState.update(interval / 1000);
-        if ((++frameTick)%15 == 0) ++frame;
+        if ((++frameTick)%4 == 0) ++frame;
     }
 
     //draw
@@ -264,13 +264,18 @@ function cursorOverlay() {
         var entity = entityBatch[i];
         
         var tile = getEntityTile(entity);
-        width = tile.width;
-        height = tile.height;
+        width = tile.w;
+        height = tile.h;
         
         x = entity.ppx + stage_x + 0.5 * (TILE_WIDTH - width) - 3;
         y = entity.ppy + stage_y - height + TILE_DEPTH - 7;
 
-        ctx.drawImage(tile, x, y);
+        ctx.drawImage(
+            tile.sheet, 
+            tile.x, tile.y,
+            tile.w, tile.h,
+            x, y,
+            width, height);
     }
     
     // Pathing
@@ -340,19 +345,44 @@ function cursorOverlay() {
 
 
 function getEntityTile(entity) {
+
+    var retVal = {
+        sheet: undefined,
+        x: 0,
+        y: 0,
+        w: 0,
+        h: 0,
+    }
+
     if (entity.state == firing) {
 
-        var img = new Image();
         var i = frame % 16;
-        var anim_prefix = "_img/color"+0+"_"+entity.name+"/";
-        img.src = anim_prefix + "color"+0+"_"+entity.name+"_Large_face"+entity.dir+"_attack_0_"+i+".png";
-        console.log(img.src);
-        return img;
+        if (i > 9) i -= 8; // HACK
+        else if (i > 1) i += 6;
+
+        retVal.sheet = framesBank[entity.faction][entity.unitName]['atk0'];
+        retVal.x = i * 248 + 80;
+        retVal.y = 308 * entity.dir + 159;
+        retVal.w = 88;
+        retVal.h = 108;
 
     } else {
-        return entity.frames[entity.dir][frame%4];
 
+        var i = frame % 4;
+
+        console.log(entity);
+        console.log(framesBank);
+
+        retVal.sheet = framesBank[entity.faction][entity.unitName]['idle'];
+        retVal.x = 88 * i;
+        retVal.y = 108 * entity.dir;
+        retVal.w = 88;
+        retVal.h = 108;
     }
+
+    console.log(retVal.sheet);
+
+    return retVal;
 }
 
 

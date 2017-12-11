@@ -25,13 +25,16 @@ function setup() {
 
     var enemy_faction = select.faction ? 0 : 2;
     
-    loadFramesBank(select.faction, 'Supply_S');
-    loadFramesBank(select.faction, 'Infantry_S');
-    loadFramesBank(select.faction, 'Tank_S');
+    loadFramesBank(select.faction, 'bldg', false, false);
+    loadFramesBank(enemy_faction, 'bldg', false, false);
+
+    loadFramesBank(select.faction, 'Supply_S', false, false);
+    loadFramesBank(select.faction, 'Infantry_S', true, false);
+    loadFramesBank(select.faction, 'Tank_S', true, false);
     
-    loadFramesBank(enemy_faction, 'Supply_S');
-    loadFramesBank(enemy_faction, 'Infantry_S');
-    loadFramesBank(enemy_faction, 'Tank_S');
+    loadFramesBank(enemy_faction, 'Supply_S', false, false);
+    loadFramesBank(enemy_faction, 'Infantry_S', true, false);
+    loadFramesBank(enemy_faction, 'Tank_S', true, false);
     
     var factions = [select.faction, enemy_faction];
     for (var i in factions) {
@@ -39,7 +42,6 @@ function setup() {
             loadFramesBank(factions[i], buildNames[j]);
         }
     }
-
     
 
     var src = 'maps/new_map.json';
@@ -744,7 +746,7 @@ function attackUnitUpdate(entity) {
 
     // Find nearby enemy?
     entity.fireUpon = undefined;
-    var range = (10*64)*(10*64);
+    var range = (5*64)*(5*64);
     for (var i in entityBatch) {
         if (entityBatch[i].faction == entity.faction) continue;
         if (dist2(entity, entityBatch[i]) < range) {
@@ -800,28 +802,29 @@ function createUnit(x, y) {
 // ---------------------------------------------------------------------------
 var framesBank = [];
 
-function loadFramesBank(colorName, unitName) {
+function loadFramesBank(colorName, unitName, atk0, atk1) {
     if (framesBank[colorName] == undefined) {
         framesBank[colorName] = {};
     }
 
-    var entityFacing = [];    
-    for (var dir = 0; dir < 4; ++ dir) {
-        var entityFrames = [];
-
-        standing_prefix = "_img/";
-
-        for (var i = 0; i < 4; ++i) {
-
-            var img = new Image();
-            img.src = standing_prefix + "color"+colorName+"/"+unitName+"_Large_face"+dir+"_"+i+".png";
-
-            entityFrames.push(img);
-        }
-        entityFacing.push(entityFrames);
+    if (framesBank[colorName][unitName] == undefined) {
+        framesBank[colorName][unitName] = {};
     }
 
-    framesBank[colorName][unitName] = entityFacing;
+    framesBank[colorName][unitName].idle = new Image();
+    framesBank[colorName][unitName].idle.src = '_img_gen/color'+colorName+'/'+unitName+'.png';
+
+    framesBank[colorName][unitName].expl = new Image();
+    framesBank[colorName][unitName].expl.src = '_img_gen/color'+colorName+'/'+unitName+'_expl.png';
+
+    if (atk0) {
+        framesBank[colorName][unitName].atk0 = new Image();
+        framesBank[colorName][unitName].atk0.src = '_img_gen/color'+colorName+'/'+unitName+'_atk0.png';
+    }
+    if (atk1) {
+        framesBank[colorName][unitName].atk1 = new Image();
+        framesBank[colorName][unitName].atk1.src = '_img_gen/color'+colorName+'/'+unitName+'_atk1.png';
+    }
 }
 
 function createAttackUnit(x, y, name, faction) {
@@ -835,6 +838,7 @@ function createAttackUnit(x, y, name, faction) {
     entity.canMove = true;
     entity.faction = faction;
     entity.name = name;
+    entity.unitName = name;
     
     entity.update = attackUnitUpdate;
     
@@ -864,7 +868,7 @@ function createHarvester(x, y, faction) {
 
     entity.update = harvesterUpdate;
     
-    entity.frames = framesBank[faction]['Supply_S'];
+    entity.unitName = 'Supply_S';
 
     entityBatch.push(entity);
 
@@ -966,7 +970,8 @@ function createEntity(t, x, y, faction) {
     // TODO B
     var unitName = buildNames[t-1];
     colourName = ''+faction;
-    entity.frames = framesBank[colourName][unitName];
+    entity.unitName = 'bldg';
+    entity.dir = t - 1;
     
     // //entity.frames = framesBank[faction][];
     // var entityFacing = [];    
