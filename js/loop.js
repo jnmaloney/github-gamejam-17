@@ -274,6 +274,8 @@ function cursorOverlay() {
         x = entity.ppx + stage_x + 0.5 * (TILE_WIDTH - width) - 3;
         y = entity.ppy + stage_y - height + TILE_DEPTH - 7;
 
+        if (height > 200) { y += entity.explOffset; }
+
         ctx.drawImage(
             tile.sheet, 
             tile.x, tile.y,
@@ -358,7 +360,30 @@ function getEntityTile(entity) {
         h: 0,
     }
 
-    if (entity.state == firing) {
+    if (entity.state == entityState_explode) {
+
+        var i = Math.floor((frameTick - entity.frameOffset) / 4);
+        if (i > 11) i = 11;
+        if (i > 9) i -= 8; // HACK
+        else if (i > 1) i += 2
+        
+
+        retVal.sheet = framesBank[entity.faction][entity.unitName]['expl'];
+
+        if(entity.canMove) {
+            retVal.w = retVal.sheet.width / 12;
+            retVal.h = retVal.sheet.height / 4;
+            retVal.x = i * retVal.w;
+            retVal.y = retVal.h * entity.dir;
+        } else {
+            // bldg
+            retVal.w = retVal.sheet.width / 12;
+            retVal.h = retVal.sheet.height / 5;
+            retVal.x = i * retVal.w;
+            retVal.y = retVal.h *  entity.dir;
+        }
+
+    } else if (entity.state == firing) {
 
         var i = frame % 16;
         if (i > 9) i -= 8; // HACK

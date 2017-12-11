@@ -36,15 +36,7 @@ function setup() {
     
     loadFramesBank(enemy_faction, 'Supply_S', false, false);
     loadFramesBank(enemy_faction, 'Infantry_S', true, false);
-    loadFramesBank(enemy_faction, 'Tank_S', true, false);
-    
-    var factions = [select.faction, enemy_faction];
-    for (var i in factions) {
-        for (var j in buildNames) {
-            loadFramesBank(factions[i], buildNames[j]);
-        }
-    }
-    
+    loadFramesBank(enemy_faction, 'Tank_S', true, false);      
 
     var src = 'maps/new_map.json';
     get(src, function(req) {
@@ -759,17 +751,20 @@ function attackUnitUpdate(entity) {
 
     // Check if idle or shoot
     if (entity.fireUpon) {
-        if (!(entity.state == firing)) {
+        if (entity.state == undefined) {
             fire(entity);
         }  
     } else {
-        entity.state = undefined;
+        if (entity.state == firing) {
+            entity.state = undefined;
+        }
     }
 
     // Shoot does damage to target
     if (entity.state == firing) {
         if (frameTick % 8 == 0) {
             createSmoke(entity.fireUpon);
+            dealDamage(entity.fireUpon, 15);
         }
     }
 }
@@ -780,6 +775,17 @@ function fire(entity) {
     entity.state = firing;
 }
 
+// ---------------------------------------------------------------------------
+// -        DAMAGING
+// ---------------------------------------------------------------------------
+var entityState_explode = {};
+function dealDamage(entity, dmg) {
+    entity.hp -= dmg;
+    if (entity.hp < 0 && entity.state != entityState_explode) {
+        entity.state = entityState_explode;
+        entity.frameOffset = frameTick;
+    }
+}
 
 // ---------------------------------------------------------------------------
 // -        SMOKE
@@ -900,6 +906,9 @@ function createAttackUnit(x, y, name, faction) {
     entity.name = name;
     entity.unitName = name;
     
+    entity.hp = 100;
+    entity.explOffset = 42;
+
     entity.update = attackUnitUpdate;
     
     entity.frames = framesBank[faction][name];
@@ -925,6 +934,9 @@ function createHarvester(x, y, faction) {
     entity.dir = 0;
     entity.canMove = true;
     entity.faction = faction;
+
+    entity.hp = 200;
+    entity.explOffset = 42;
 
     entity.update = harvesterUpdate;
     
@@ -1026,6 +1038,9 @@ function createEntity(t, x, y, faction) {
     entity.dir = 0;
     
     entity.faction = faction;
+
+    entity.hp = 1000;
+    entity.explOffset = 102;
 
     // TODO B
     var unitName = buildNames[t-1];
