@@ -3,6 +3,8 @@
 // ---------------------------------------------------------------------------
 var map = [];
 tiles = [];
+var smokes = [];
+
 
 function setup() {
 
@@ -763,6 +765,13 @@ function attackUnitUpdate(entity) {
     } else {
         entity.state = undefined;
     }
+
+    // Shoot does damage to target
+    if (entity.state == firing) {
+        if (frameTick % 8 == 0) {
+            createSmoke(entity.fireUpon);
+        }
+    }
 }
 var firing = {
     frames: [],
@@ -773,9 +782,58 @@ function fire(entity) {
 
 
 // ---------------------------------------------------------------------------
+// -        SMOKE
+// ---------------------------------------------------------------------------
+function createSmoke(entity) {
+    var smoke = {};
+    smoke.ppx = entity.ppx + 64 - 32 * Math.random() - 32;
+    smoke.ppy = entity.ppy + 32 - 48 * Math.random() - 32;
+    smoke.frame = 7;
+    smokes.push(smoke);
+}
+
+function updateSmoke() {
+    for (var i in smokes) {
+        if (frameTick % 2 == 0) --smokes[i].frame;
+        --smokes[i].ppy;
+        if (smokes[i].frame < 0) {
+            smokes.splice(i, 1);
+        }
+    }
+}
+
+function drawSmoke() {
+
+    var tile = {
+        sheet: framesBank['smoke'],
+        x: 0,
+        y: 0,
+        w: 16,
+        h: 16,
+    }
+    var width = tile.w,
+        height = tile.h;
+
+    for (var i in smokes) {
+        var x = smokes[i].ppx + stage_x,
+            y = smokes[i].ppy + stage_y;
+
+        tile.x = 16 * (smokes[i].frame % 4);
+        tile.y = 16 * Math.floor(smokes[i].frame / 4);
+
+        ctx.drawImage(
+            tile.sheet, 
+            tile.x, tile.y,
+            tile.w, tile.h,
+            x, y,
+            width, height);
+    }
+}
+
+
+// ---------------------------------------------------------------------------
 // -        BUILD
 // ---------------------------------------------------------------------------
-//var buildNames = ['City', 'Factory', 'Airport', 'Supply_S', 'Laboratory', 'Castle', 'Estate'];
 var buildNames = ['Estate', 'Factory', 'Airport', 'Laboratory', 'City', 'Castle'];
 var colourName = '1';
 var entityBatch = [];
@@ -801,6 +859,8 @@ function createUnit(x, y) {
 // -        BANK OF ANIMATION FRAMES
 // ---------------------------------------------------------------------------
 var framesBank = [];
+framesBank['smoke'] = new Image();
+framesBank['smoke'].src = 'img/Smoke.png';
 
 function loadFramesBank(colorName, unitName, atk0, atk1) {
     if (framesBank[colorName] == undefined) {
@@ -973,24 +1033,6 @@ function createEntity(t, x, y, faction) {
     entity.unitName = 'bldg';
     entity.dir = t - 1;
     
-    // //entity.frames = framesBank[faction][];
-    // var entityFacing = [];    
-    // for (var dir = 0; dir < 4; ++ dir) {
-    //     var entityFrames = [];
-
-    //     standing_prefix = "_img/";
-
-    //     for (var i = 0; i < 4; ++i) {
-
-    //         var img = new Image();
-    //         img.src = standing_prefix + "color"+colourName+"/"+buildNames[t-1]+"_Large_face"+dir+"_"+i+".png";
-
-    //         entityFrames.push(img);
-    //     }
-    //     entityFacing.push(entityFrames);
-    // }
-    // entity.frames = entityFacing;
-
     entityBatch.push(entity);
     
     // Cost

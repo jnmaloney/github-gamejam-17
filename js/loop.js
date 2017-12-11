@@ -70,7 +70,11 @@ function gameDraw() {
     drawLayer2(0, 1);
     drawLayer1(1);
     drawShade();
+
     cursorOverlay();
+
+    updateSmoke();
+    drawSmoke();
 }
 
 function drawShade() {
@@ -370,17 +374,12 @@ function getEntityTile(entity) {
 
         var i = frame % 4;
 
-        console.log(entity);
-        console.log(framesBank);
-
         retVal.sheet = framesBank[entity.faction][entity.unitName]['idle'];
         retVal.x = 88 * i;
         retVal.y = 108 * entity.dir;
         retVal.w = 88;
         retVal.h = 108;
     }
-
-    console.log(retVal.sheet);
 
     return retVal;
 }
