@@ -306,6 +306,41 @@ function cursorOverlay() {
             tile.w, tile.h,
             x, y,
             width, height);
+
+        // Status
+        if (entity.hp < entity.maxhp) {
+            ctx.fillStyle = 'lightgrey';
+            ctx.fillRect(x+15, y + 93, 
+                64, 10);
+            ctx.fillStyle = 'red';
+            var l = 62 * (entity.hp / entity.maxhp);
+            if (l > 0) {
+                ctx.fillRect(x+16, y + 94, 
+                l, 8);
+            }
+        }
+
+        if (entity.mining) { //state == entityState_harvesting) {
+            ctx.fillStyle = 'lightgrey';
+            ctx.fillRect(x+15, y + 43, 
+                64, 10);
+            ctx.fillStyle = 'darkgrey';
+            var l = 62 * (entity.actionTimer.t / entity.actionTimer.final);
+            if (l > 0) {
+                ctx.fillRect(x+16, y + 44, 
+                l, 8);
+            }
+        } else if (entity.load) {
+            ctx.fillStyle = 'lightgrey';
+            ctx.fillRect(x+15, y + 43, 
+                64, 10);
+            ctx.fillStyle = 'darkgrey';
+            var l = 62;
+            if (l > 0) {
+                ctx.fillRect(x+16, y + 44, 
+                l, 8);
+            }
+        }
     }
     
     // Pathing

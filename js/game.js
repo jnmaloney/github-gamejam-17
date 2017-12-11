@@ -38,7 +38,7 @@ function setup() {
     loadFramesBank(enemy_faction, 'Infantry_S', true, false);
     loadFramesBank(enemy_faction, 'Tank_S', true, false);      
 
-    var src = 'maps/new_map.json';
+    var src = 'maps/new_game.json';
     get(src, function(req) {
             loadMap(JSON.parse(req.responseText));
 
@@ -479,6 +479,7 @@ function updateMovePath() {
             var brake = false;
             for (var j = 0; j < entityBatch.length; ++j) {
                 if (i == j) continue;
+                if (entity.load && !entityBatch[j].canMove) continue; // Loading hack
                 var otherEntity = entityBatch[j];
                 var a = { 
                     c: [entity.ppx + entity.dxss, entity.ppy + entity.dyss], 
@@ -699,12 +700,12 @@ function harvesterUpdate(entity) {
                 map.layers[1].data[tt.x + (tt.y*MAP.tw)] = 1412; // Mined magic
                 map.layers[2].data[tt.x + (tt.y*MAP.tw)] = 0; // Remove resource tag
                 entity.mining = true;
-                entity.actionTimer = { t:0, final: 60 };
+                entity.actionTimer = { t:0, final: 6000 };
                 entity.actionTrigger = undefined;
             }
 
     } else {
-        if (entity.r) {
+        if (entity.r && entity.r < 16000.0) {
             ++entity.r;
         } else {
             entity.r = 1;
@@ -720,10 +721,6 @@ function harvesterUpdate(entity) {
         if (t1) {
             entity.harvestPt = tt;
             // Move there
-            // var x0 = entity.ppx + stage_x - 32;
-            // var x1 = x0 + 64;
-            // var y0 = entity.ppy + stage_y - 32;
-            // var y1 = y0 + 32;
             var ss = TileToScreen(tt.x, tt.y, 0, 0);
             entity.target = { x: ss.x + 64 - 32, y: ss.y + 32 };
             entity.r = 0;
@@ -749,7 +746,6 @@ function attackUnitUpdate(entity) {
         }
     }
 
-
     // Check if idle or shoot
     if (entity.fireUpon) {
         if (entity.state == undefined) {
@@ -763,9 +759,9 @@ function attackUnitUpdate(entity) {
 
     // Shoot does damage to target
     if (entity.state == firing) {
-        if (frameTick % 8 == 0) {
+        if (frameTick % entity.firingRate == 0) {
             createSmoke(entity.fireUpon);
-            dealDamage(entity.fireUpon, 15);
+            dealDamage(entity.fireUpon, entity.dmg);
         }
     }
 }
@@ -785,7 +781,7 @@ function dealDamage(entity, dmg) {
     entity.hp -= dmg;
 
     // Kill?
-    if (entity.hp < 0 && entity.state != entityState_explode) {
+    if (entity.hp <= 0 && entity.state != entityState_explode) {
         entity.state = entityState_explode;
         entity.frameOffset = frameTick;
         entity.target = undefined;
@@ -913,7 +909,11 @@ function createAttackUnit(x, y, name, faction) {
     entity.unitName = name;
     
     entity.hp = 100;
+    entity.maxhp = 100;
     entity.explOffset = 42;
+
+    entity.firingRate = 8;
+    entity.dmg = 1;
 
     entity.update = attackUnitUpdate;
     
@@ -942,6 +942,7 @@ function createHarvester(x, y, faction) {
     entity.faction = faction;
 
     entity.hp = 200;
+    entity.maxhp = 200;
     entity.explOffset = 42;
 
     entity.update = harvesterUpdate;
@@ -1050,6 +1051,7 @@ function createEntity(t, x, y, faction) {
     entity.faction = faction;
 
     entity.hp = 1000;
+    entity.maxhp = 1000;
     entity.explOffset = 42;
 
     // TODO B
