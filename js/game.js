@@ -57,10 +57,10 @@ function setup() {
             // Create base
             TILE_WIDTH = 64;
             TILE_DEPTH = 32;
-            var ss = TileToScreen(84, 74, stage_x, stage_y);
-            createEntity(1, ss.x, ss.y, select.faction);
+            //var ss = TileToScreen(84, 74, stage_x, stage_y);
+            //createEntity(1, ss.x, ss.y, select.faction);
             ss = TileToScreen(84, 76, stage_x, stage_y);
-            createEntity(6, ss.x, ss.y, select.faction);
+            createEntity(1, ss.x, ss.y, select.faction);
 
             stage_x = -ss.x + 0.5 * canvas.width;
             stage_y = -ss.y + 0.5 * canvas.height;
@@ -77,7 +77,7 @@ function setup() {
             // TEST
             // Create Enemy Base
             ss = TileToScreen(47, 70, stage_x, stage_y);
-            createEntity(1, ss.x, ss.y, enemy_faction);
+            createEntity(3, ss.x, ss.y, enemy_faction);
 
         });
 
@@ -428,7 +428,7 @@ function tryBuild(t) {
     if (availableIce < ice) return;
     
     // Go into building place mode
-    place = t+1;
+    place = t;
 }
 
 // ---------------------------------------------------------------------------
@@ -743,6 +743,7 @@ function attackUnitUpdate(entity) {
     var range = (5*64)*(5*64);
     for (var i in entityBatch) {
         if (entityBatch[i].faction == entity.faction) continue;
+        if (entityBatch[i].hp <= 0) continue;
         if (dist2(entity, entityBatch[i]) < range) {
             entity.fireUpon = entityBatch[i];
         }
@@ -780,10 +781,15 @@ function fire(entity) {
 // ---------------------------------------------------------------------------
 var entityState_explode = {};
 function dealDamage(entity, dmg) {
+
     entity.hp -= dmg;
+
+    // Kill?
     if (entity.hp < 0 && entity.state != entityState_explode) {
         entity.state = entityState_explode;
         entity.frameOffset = frameTick;
+        entity.target = undefined;
+        entity.fireUpon = undefined;
     }
 }
 
@@ -840,10 +846,10 @@ function drawSmoke() {
 // ---------------------------------------------------------------------------
 // -        BUILD
 // ---------------------------------------------------------------------------
-var buildNames = ['Estate', 'Factory', 'Airport', 'Laboratory', 'City', 'Castle'];
+var buildNames = ['Airport', 'Palace', 'Power', 'Barracks', 'Factory', 'Lab'];
 var colourName = '1';
 var entityBatch = [];
-var standing_prefix = "img/";//Revised_PixVoxel_Wargame/standing_frames";
+var standing_prefix = "img/";
 
 
 function createUnit(x, y) {
@@ -955,15 +961,15 @@ function createHarvester(x, y, faction) {
 // -        BUILDINGS
 // ---------------------------------------------------------------------------
 function commandBuildBarracks() {
-    tryBuild(0);
+    tryBuild(3);
 }
 
 function commandBuildFactory() {
-    tryBuild(1);
+    tryBuild(4);
 }
 
 function commandBuildCity() {
-    tryBuild(4);
+    tryBuild(2);
 }
 
 
@@ -1044,13 +1050,13 @@ function createEntity(t, x, y, faction) {
     entity.faction = faction;
 
     entity.hp = 1000;
-    entity.explOffset = 102;
+    entity.explOffset = 42;
 
     // TODO B
-    var unitName = buildNames[t-1];
+    var unitName = buildNames[t];
     colourName = ''+faction;
     entity.unitName = 'bldg';
-    entity.dir = t - 1;
+    entity.dir = t;
     
     entityBatch.push(entity);
     
@@ -1061,19 +1067,19 @@ function createEntity(t, x, y, faction) {
     playerEconomy.power -= power;
     
     // Some more builds
-    if (t-1 == 0) {
+    if (t == 3) {
         entity.name = 'Barracks';
         entity.supply = [undefined, undefined, undefined];
         entity.update = updateBarracks;
     }
-    if (t-1 == 1) {
+    if (t == 4) {
         entity.name = 'Factory';
         entity.supply = [undefined, undefined];
         entity.update = updateFactory;
     }
 
     // Palace Build Machine
-    if (t-1 == 5) {
+    if (t == 1) {
         entity.update = undefined;
         entity.name = 'Palace';
         entity.control = {
@@ -1086,7 +1092,7 @@ function createEntity(t, x, y, faction) {
     }
 
     // Power boost ?
-    if (t-1 == 4) {
+    if (t == 2) {
         entity.name = 'Power';
         playerEconomy.power += 1000;
     }

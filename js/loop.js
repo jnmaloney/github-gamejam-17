@@ -59,13 +59,22 @@ function gameState(dt) {
     for (var i in entityBatch) {
         var e = entityBatch[i];
         if (e.hp <= 0 && (frameTick - e.frameOffset) > 64) {
+            // Remove form list
             entityBatch.splice(i, 1);
+            // Remove from list
             if (e.parent) {
                 for (var j in e.parent.supply) {
                     if (e.parent.supply[j] == e) {
                         e.parent.supply[j] = undefined;
                         break;
                     }
+                }
+            }
+            // Remove from list
+            for (var j in selected) {
+                if (selected[j] == e) {
+                    selected.splice(j, 1);
+                    break;
                 }
             }
         }
@@ -393,7 +402,7 @@ function getEntityTile(entity) {
         } else {
             // bldg
             retVal.w = retVal.sheet.width / 12;
-            retVal.h = retVal.sheet.height / 5;
+            retVal.h = retVal.sheet.height / 6;
             retVal.x = i * retVal.w;
             retVal.y = retVal.h *  entity.dir;
         }
