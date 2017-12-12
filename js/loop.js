@@ -207,10 +207,10 @@ function cursorOverlay1(i, j) {
     var y2 = y1 + 16;
 
     ctx.globalAlpha = 0.5;
-    ctx.fillStyle = "#f0f";
-    if (p == 0) ctx.fillStyle = "#0f0";
+    ctx.fillStyle = "#ff0";
+    if (p == 0) ctx.fillStyle = "#11c";
     if (p == 1) ctx.fillStyle = "#ff0";
-    if (p == 2) ctx.fillStyle = "#f00";
+    if (p == 2) ctx.fillStyle = "#ff0";
 
     ctx.beginPath();
     ctx.moveTo(x0, y1);
@@ -245,12 +245,14 @@ function cursorOverlay() {
     if (place) {
         var tt = ScreenToTile(currX, currY);
         var ss = TileToScreen(tt.x, tt.y, stage_x, stage_y);
-        var x0 = ss.x;
+        var x0 = ss.x - 32;
         var x1 = x0 + 64;
         var x2 = x1 + 64;
         var y0 = ss.y;
         var y1 = y0 + 32;
         var y2 = y1 + 32;
+
+        ctx.lineStyle = 'lightgrey';
         ctx.beginPath();
         ctx.moveTo(x0, y1);
         ctx.lineTo(x1, y0);
@@ -274,6 +276,20 @@ function cursorOverlay() {
         var y0 = entity.ppy + stage_y - 32;
         var y1 = y0 + 32;
         var y2 = y1 + 32;
+
+        // Adjust
+        if (entity.canMove) {
+            x0 += 24;
+            x2 -= 24;
+            y0 += 12;
+            y2 -= 12;
+        } else {
+            x0 += 14;
+            x2 -= 14;
+            y0 += 7;
+            y2 -= 7;
+        }
+
         ctx.moveTo(x0, y1);
         ctx.lineTo(x1, y0);
         ctx.lineTo(x2, y1);
@@ -300,6 +316,8 @@ function cursorOverlay() {
 
         if (height > 200) { y += entity.explOffset; }
 
+        if (entity.state == entityState_building) {}
+        else
         ctx.drawImage(
             tile.sheet, 
             tile.x, tile.y,
@@ -308,7 +326,7 @@ function cursorOverlay() {
             width, height);
 
         // Status
-        if (entity.hp < entity.maxhp) {
+        if (entity.hp < entity.maxhp && entity.hp > 0) {
             ctx.fillStyle = 'lightgrey';
             ctx.fillRect(x+15, y + 93, 
                 64, 10);
@@ -336,6 +354,30 @@ function cursorOverlay() {
                 64, 10);
             ctx.fillStyle = 'darkgrey';
             var l = 62;
+            if (l > 0) {
+                ctx.fillRect(x+16, y + 44, 
+                l, 8);
+            }
+        }
+
+        if (entity.state == entityState_building) {
+            ctx.fillStyle = 'lightgrey';
+            ctx.fillRect(x+15, y + 93, 
+                64, 10);
+            ctx.fillStyle = 'darkgrey';
+            var l = 62 * (frameTick - entity.beginBuild) / entity.buildDuration;
+            if (l > 0) {
+                ctx.fillRect(x+16, y + 94, 
+                l, 8);
+            }
+        }
+
+        if (entity.state == entityState_produce) {
+            ctx.fillStyle = 'lightgrey';
+            ctx.fillRect(x+15, y + 43, 
+                64, 10);
+            ctx.fillStyle = 'darkgrey';
+            var l = 62 * (frameTick - entity.beginProduce) / entity.produceDuration;
             if (l > 0) {
                 ctx.fillRect(x+16, y + 44, 
                 l, 8);
@@ -442,7 +484,7 @@ function getEntityTile(entity) {
             retVal.y = retVal.h *  entity.dir;
         }
 
-    } else if (entity.state == firing) {
+    } else if (entity.state == entityState_firing) {
 
         var i = frame % 16;
         if (i > 9) i -= 8; // HACK

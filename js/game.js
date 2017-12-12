@@ -4,6 +4,7 @@
 var map = [];
 tiles = [];
 var smokes = [];
+var economies = {};
 
 
 function setup() {
@@ -25,19 +26,27 @@ function setup() {
         loadTileset(JSON.parse(req.responseText), 1411);
     });
 
+    // Set factions to use
     var enemy_faction = select.faction ? 0 : 2;
     
+    economies[select.faction] = playerEconomy;
+    economies[enemy_faction] = aiEconomy;
+
+
+    // Load data
     loadFramesBank(select.faction, 'bldg', false, false);
     loadFramesBank(enemy_faction, 'bldg', false, false);
 
     loadFramesBank(select.faction, 'Supply_S', false, false);
     loadFramesBank(select.faction, 'Infantry_S', true, false);
     loadFramesBank(select.faction, 'Tank_S', true, false);
+    loadFramesBank(select.faction, 'Copter_S', true, false);
     
     loadFramesBank(enemy_faction, 'Supply_S', false, false);
     loadFramesBank(enemy_faction, 'Infantry_S', true, false);
     loadFramesBank(enemy_faction, 'Tank_S', true, false);      
-
+    loadFramesBank(enemy_faction, 'Copter_S', true, false);      
+    
     var src = 'maps/new_game.json';
     get(src, function(req) {
             loadMap(JSON.parse(req.responseText));
@@ -65,19 +74,17 @@ function setup() {
             stage_x = -ss.x + 0.5 * canvas.width;
             stage_y = -ss.y + 0.5 * canvas.height;
 
-            ss = TileToScreen(84, 79, stage_x, stage_y);
-            createHarvester(ss.x, ss.y, select.faction);
-            ss = TileToScreen(87, 79, stage_x, stage_y);
-            createHarvester(ss.x, ss.y, select.faction);
             ss = TileToScreen(79, 82, stage_x, stage_y);
-            createAttackUnit(ss.x, ss.y, 'Infantry_S', select.faction);
+            entityBatch.push(
+                createAttackUnit(ss.x, ss.y, 'Infantry_S', select.faction) );
             ss = TileToScreen(89, 82, stage_x, stage_y);
-            createAttackUnit(ss.x, ss.y, 'Tank_S', select.faction);
+            entityBatch.push(
+                createAttackUnit(ss.x, ss.y, 'Tank_S', select.faction) );
 
             // TEST
             // Create Enemy Base
-            ss = TileToScreen(47, 70, stage_x, stage_y);
-            createEntity(3, ss.x, ss.y, enemy_faction);
+            ss = TileToScreen(9, 7, stage_x, stage_y);
+            createEntity(1, ss.x, ss.y, enemy_faction);
 
         });
 
@@ -262,19 +269,19 @@ function findxy(res, e) {
     gameEngineState.mouse(res, e);
 }
 
+
 var selectionBox = undefined;
 function mouseGame(res, e) {
     // Left Click
     if (e.buttons == 1) {
         var x = currX;
         var y = currY;
-        //if (selectionBox == undefined) {
+
         if (res == 'down') {
             if (control.move) {
                 moveCommand(currX, currY);
             } else if (place) {
-                createEntity(place, currX, currY, select.faction);
-                place = 0;
+                tryPlace(place);
             } else {
                 selectionBox = { x0: x, y0: y, x1: x, y1: y };
             }
@@ -282,7 +289,6 @@ function mouseGame(res, e) {
         if (res == 'move' && selectionBox) {
             selectionBox.x1 = x;
             selectionBox.y1 = y;
-            //doSelection(selectionBox);
         } 
     }
 
@@ -362,6 +368,7 @@ function doSelection(selectBox) {
     }
 }
 
+
 function testAABBAABB(a, b) {
     // SIMD optimized AABB-AABB test
     // Optimized by removing conditional branches
@@ -371,57 +378,24 @@ function testAABBAABB(a, b) {
     return x && y;
 }
 
+
 function ccw(A,B,C) {
     return (C.y-A.y)*(B.x-A.x) > (B.y-A.y)*(C.x-A.x);
 }
+
 
 function intersect(A,B,C,D) {
     return ccw(A,C,D) != ccw(B,C,D) && ccw(A,B,C) != ccw(A,B,D);
 }
 
-function selectClick_unused(x0, y0, x1, y1) {
-    selected = [];
-
-    // rect collide every entity
-    for (var i = 0; i < entityBatch.length; ++i) {
-        var entity = entityBatch[i];
-
-        if (entity.ppx > x0 - 16 &&
-            entity.ppx < x1 + 16 &&
-            entity.ppy < y0 - 16 &&
-            entity.ppy > y1 + 16 ) {
-                selected.push(entity);
-                
-            }
-    }
-
-    // Clean up
-    for (var i in selected) {
-        if (selected.canMove) {
-            // Remove entities without canMove
-            for (var j = 0; j < selected.length; ) {
-                if (selected[j].canMove) ++j
-                else selected.splice(j, 1);
-            }
-            break;
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // -        BUILD COMMAND
 // --------------------------------------------------------------------------
-var barracks = [200, 200, ""];
-var factory = [300, 400, ""];
-var airport = [400, 300, ""];
-var techlab = [400, 400, ""];
-var power = [0, 0, ""];
-var build_costs = [barracks, factory, airport, techlab, power];
-
 function tryBuild(t) {
     // Check resources
-    var power = build_costs[t][0];
-    var ice = build_costs[t][1];
+    var ice = build_costs[t][0];
+    var power = build_costs[t][1];
     var availablePower = playerEconomy.power;
     var availableIce = playerEconomy.ice;
     if (availablePower < power) return;
@@ -430,6 +404,32 @@ function tryBuild(t) {
     // Go into building place mode
     place = t;
 }
+
+
+function tryPlace(t) {
+
+    // Cancel
+    place = 0;
+
+    // Check resources
+    var ice = build_costs[t][0];
+    var power = build_costs[t][1];
+    var availablePower = playerEconomy.power;
+    var availableIce = playerEconomy.ice;
+    if (availablePower < power) return;
+    if (availableIce < ice) return;
+
+    // Place a new building
+    var entity = createEntity(t, currX, currY, select.faction);
+    if (entity) {
+            
+        // Cost
+        playerEconomy.power -= power;
+        playerEconomy.ice -= ice;
+    }
+    
+}
+
 
 // ---------------------------------------------------------------------------
 // -        MOVE COMMAND
@@ -572,84 +572,10 @@ function updateMovePath() {
             else entity.ppy += entity.dyss;
         } 
     }
-}
 
-function updateMovePath_og() {
+    //  Baddie update
+    aiUpdate();
 
-    //var ss = TileToScreen(tt.x, tt.y, 0, 0);
-    
-    for (var i = 0; i < selected.length; ++i) {
-        var x = selected[i].ppx;
-        var y = selected[i].ppy;
-        
-        var width = 100;
-        var height = 100;
-        var tt = ScreenToTile(x + stage_x + 0.5 * (TILE_WIDTH + width) - 3 - 0.5*width, 
-                              y + stage_y - height + TILE_DEPTH - 7 + height - 20);
-                 
-        //ctx.beginPath();                      
-        //ctx.moveTo(x + stage_x + 0.5 * (TILE_WIDTH + entity.img.width) - 3 - 0.5*entity.img.width, 
-        //                      y + stage_y - entity.img.height + TILE_DEPTH - 7 + entity.img.height - 20);
-        //                      ctx.lineTo(0, 0);
-        //ctx.stroke();
-        //console.log(x);
-        //console.log(y);
-        //console.log(tt);
-
-        //if (!selected[i].dir_space) continue;
-        //if (!selected[i].dir_space[tt.x]) continue;
-        continue;
-        
-        var ds = selected[i].dir_space[tt.x][tt.y];
-        //console.log(ds);
-        
-        // cursor?
-        {
-            var ss = TileToScreen(tt.x, tt.y, stage_x, stage_y);
-            var x0 = ss.x;
-            var x1 = x0 + 64;
-            var x2 = x1 + 64;
-            var y0 = ss.y;
-            var y1 = y0 + 32;
-            var y2 = y1 + 32;
-            ctx.beginPath();
-            ctx.moveTo(x0, y1);
-            ctx.lineTo(x1, y0);
-            ctx.lineTo(x2, y1);
-            ctx.lineTo(x1, y2);
-            ctx.closePath();
-            ctx.stroke();
-        }
-        
-        var newx = x + 2 * ds.x;
-        var newy = y + ds.y;
-        
-        //for (var j = 0; j < selected[i].length; ++j) { // dumb
-            selected[i].ppx = newx;
-            selected[i].ppy = newy;
-        //}
-        
-        // dir
-        
-        if (ds.y > 0) {
-            if (ds.x > 0) selected[i].dir = 0;
-            if (ds.x < 0) selected[i].dir = 1;
-        } else {
-            if (ds.x > 0) selected[i].dir = 3;
-            if (ds.x < 0) selected[i].dir = 2;
-        }
-        //if (ds.y > 0) selected[i].dir = 0;
-        //if (ds.y < 0) selected[i].dir = 3;
-        
-        // hack
-        if (ds.x == 0 && ds.y == 0) {
-            var ss = TileToScreen(tt.x, tt.y, stage_x, stage_y);
-            //for (var j = 0; j < selected[i].length; ++j) { // dumb
-                selected[i].ppx = ss.x - stage_x;
-                selected[i].ppy = ss.y - stage_y;
-            //}
-        }
-    }
 }
 
 
@@ -658,136 +584,8 @@ function updateMovePath_og() {
 // ---------------------------------------------------------------------------
 var playerEconomy = {};
 playerEconomy.ice = 2000;
-playerEconomy.power = 1200;
+playerEconomy.power = 0;
 
-// ---------------------------------------------------------------------------
-// -        OTHER COMMAND
-// ---------------------------------------------------------------------------
-function harvesterUpdate(entity) {
-
-    if (entity.mining) {
-        entity.actionTimer.t++;
-        if (entity.actionTimer.t == entity.actionTimer.final) {
-            entity.mining = false;
-            entity.load = 100;
-
-            var ss = TileToScreen(85, 74, 0, 0); // retarget to fort
-            entity.target = { x: ss.x - 96, y: ss.y + 16 };
-            entity.harvestPt = undefined;
-        }
-        return;
-    }
-
-    if (entity.load) {
-        if (entity.ppx == entity.target.x &&
-            entity.ppy == entity.target.y) {
-            entity.load = 0;
-            // Collect resource
-            playerEconomy.ice += 2000;
-        }
-        return;
-    }
-
-    if (entity.harvestPt) {
-
-        // Check and start harvesting
-        var tt = entity.harvestPt;
-        //var ss = TileToScreen(tt.x, tt.y, stage_x, stage_y);
-
-        if (entity.ppx == entity.target.x &&
-            entity.ppy == entity.target.y) {
-                // do harvest
-                map.layers[1].data[tt.x + (tt.y*MAP.tw)] = 1412; // Mined magic
-                map.layers[2].data[tt.x + (tt.y*MAP.tw)] = 0; // Remove resource tag
-                entity.mining = true;
-                entity.actionTimer = { t:0, final: 6000 };
-                entity.actionTrigger = undefined;
-            }
-
-    } else {
-        if (entity.r && entity.r < 16000.0) {
-            ++entity.r;
-        } else {
-            entity.r = 1;
-        }
-        var a = Math.random() * 2 * Math.PI;
-        var x = Math.floor(1.6 * entity.r * Math.cos(a)) + entity.ppx;
-        var y = Math.floor(1.6 * entity.r * Math.sin(a)) + entity.ppy;
-
-        // check if tile is harvestable
-        tt = ScreenToTile(x, y);
-        if (map.layers) cells = map.layers[2].data;
-        var t1 = tcell(tt.x, tt.y);
-        if (t1) {
-            entity.harvestPt = tt;
-            // Move there
-            var ss = TileToScreen(tt.x, tt.y, 0, 0);
-            entity.target = { x: ss.x + 64 - 32, y: ss.y + 32 };
-            entity.r = 0;
-        }
-    }
-}
-
-
-function dist2(a, b) {
-    return (a.ppx - b.ppx) * (a.ppx - b.ppx) +
-           (a.ppy - b.ppy) * (a.ppy - b.ppy); 
-}
-function attackUnitUpdate(entity) {
-
-    // Find nearby enemy?
-    entity.fireUpon = undefined;
-    var range = (5*64)*(5*64);
-    for (var i in entityBatch) {
-        if (entityBatch[i].faction == entity.faction) continue;
-        if (entityBatch[i].hp <= 0) continue;
-        if (dist2(entity, entityBatch[i]) < range) {
-            entity.fireUpon = entityBatch[i];
-        }
-    }
-
-    // Check if idle or shoot
-    if (entity.fireUpon) {
-        if (entity.state == undefined) {
-            fire(entity);
-        }  
-    } else {
-        if (entity.state == firing) {
-            entity.state = undefined;
-        }
-    }
-
-    // Shoot does damage to target
-    if (entity.state == firing) {
-        if (frameTick % entity.firingRate == 0) {
-            createSmoke(entity.fireUpon);
-            dealDamage(entity.fireUpon, entity.dmg);
-        }
-    }
-}
-var firing = {
-    frames: [],
-};
-function fire(entity) {
-    entity.state = firing;
-}
-
-// ---------------------------------------------------------------------------
-// -        DAMAGING
-// ---------------------------------------------------------------------------
-var entityState_explode = {};
-function dealDamage(entity, dmg) {
-
-    entity.hp -= dmg;
-
-    // Kill?
-    if (entity.hp <= 0 && entity.state != entityState_explode) {
-        entity.state = entityState_explode;
-        entity.frameOffset = frameTick;
-        entity.target = undefined;
-        entity.fireUpon = undefined;
-    }
-}
 
 // ---------------------------------------------------------------------------
 // -        SMOKE
@@ -840,30 +638,6 @@ function drawSmoke() {
 
 
 // ---------------------------------------------------------------------------
-// -        BUILD
-// ---------------------------------------------------------------------------
-var buildNames = ['Airport', 'Palace', 'Power', 'Barracks', 'Factory', 'Lab'];
-var colourName = '1';
-var entityBatch = [];
-var standing_prefix = "img/";
-
-
-function createUnit(x, y) {
-    var tt = ScreenToTile(x, y);
-    var ss = TileToScreen(tt.x, tt.y, 0, 0);
-
-    entity = {};
-    entity.ppx = ss.x;
-    entity.ppy = ss.y;
-    entity.dir = 0;
-
-    entity.update = undefined;
-
-    // TODO - render type = unit
-}
-
-
-// ---------------------------------------------------------------------------
 // -        BANK OF ANIMATION FRAMES
 // ---------------------------------------------------------------------------
 var framesBank = [];
@@ -895,68 +669,6 @@ function loadFramesBank(colorName, unitName, atk0, atk1) {
     }
 }
 
-function createAttackUnit(x, y, name, faction) {
-    var tt = ScreenToTile(x, y);
-    var ss = TileToScreen(tt.x, tt.y, 0, 0);
-
-    entity = {};
-    entity.ppx = ss.x;
-    entity.ppy = ss.y;
-    entity.dir = 0;
-    entity.canMove = true;
-    entity.faction = faction;
-    entity.name = name;
-    entity.unitName = name;
-    
-    entity.hp = 100;
-    entity.maxhp = 100;
-    entity.explOffset = 42;
-
-    entity.firingRate = 8;
-    entity.dmg = 1;
-
-    entity.update = attackUnitUpdate;
-    
-    entity.frames = framesBank[faction][name];
-
-    entityBatch.push(entity);
-
-    entity.dir = Math.floor(Math.random() * 4);
-
-    entity.speed = 1.15;
-    if (name == 'Infantry_S') entity.speed = 1.8;
-
-    return entity;
-}
-
-
-function createHarvester(x, y, faction) {
-    var tt = ScreenToTile(x, y);
-    var ss = TileToScreen(tt.x, tt.y, 0, 0);
-
-    entity = {};
-    entity.ppx = ss.x;
-    entity.ppy = ss.y;
-    entity.dir = 0;
-    entity.canMove = true;
-    entity.faction = faction;
-
-    entity.hp = 200;
-    entity.maxhp = 200;
-    entity.explOffset = 42;
-
-    entity.update = harvesterUpdate;
-    
-    entity.unitName = 'Supply_S';
-
-    entityBatch.push(entity);
-
-    entity.dir = Math.floor(Math.random() * 4);
-    
-    entity.speed = 1;
-
-    return entity;
-}
 
 // ---------------------------------------------------------------------------
 // -        BUILDINGS
@@ -965,14 +677,15 @@ function commandBuildBarracks() {
     tryBuild(3);
 }
 
+
 function commandBuildFactory() {
     tryBuild(4);
 }
 
+
 function commandBuildCity() {
     tryBuild(2);
 }
-
 
 
 function collideUnit(entity) {
@@ -994,121 +707,6 @@ function collideUnit(entity) {
     return false;
 }
 
-function updateBarracks(entity) {
-    for (var i = 0; i < entity.supply.length; ++i) {
-        if (entity.supply[i] == undefined) {
-            if (collideUnit(entity)) continue;
-            entity.supply[i] = createAttackUnit(
-                entity.ppx + stage_x, 
-                entity.ppy + stage_y, 
-                'Infantry_S',
-                entity.faction);
-            //entity.supply[i].target = { x: entity.ppx, y: entity.ppy - 64 };
-            entity.supply[i].parent = entity;
-            break;
-        }
-    }
-}
-
-function updateFactory(entity)  {
-    for (var i = 0; i < entity.supply.length; ++i) {
-        if (entity.supply[i] == undefined) {
-            if (collideUnit(entity)) continue;
-            entity.supply[i] = createAttackUnit(
-                entity.ppx + stage_x, 
-                entity.ppy + stage_y - 32*(i+1), 
-                'Tank_S',
-                entity.faction);
-            entity.supply[i].parent = entity;
-            break;
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// -        BUILDINGS
-// ---------------------------------------------------------------------------
-function createEntity(t, x, y, faction) { 
-    
-    var tt = ScreenToTile(x, y);
-
-    // Check build tiles
-    if (canPlace(tt.x, tt.y) != 0) return; 
-    if (canPlace(tt.x+1, tt.y) != 0) return;
-    if (canPlace(tt.x, tt.y+1) != 0) return;
-    if (canPlace(tt.x+1, tt.y+1) != 0) return;
-    
-    // y hack
-    y += 32;
-    tt = ScreenToTile(x, y);
-    var ss = TileToScreen(tt.x, tt.y, 0, 0);
-
-    entity = {};
-    entity.ppx = ss.x;// + 0.5 * (TILE_WIDTH - entity.img.width);
-    entity.ppy = ss.y;// - entity.img.height + TILE_DEPTH;
-    entity.dir = 0;
-    
-    entity.faction = faction;
-
-    entity.hp = 1000;
-    entity.maxhp = 1000;
-    entity.explOffset = 42;
-
-    // TODO B
-    var unitName = buildNames[t];
-    colourName = ''+faction;
-    entity.unitName = 'bldg';
-    entity.dir = t;
-    
-    entityBatch.push(entity);
-    
-    // Cost
-    var power = 0;//build_costs[t][0];
-    var ice = 0;//build_costs[t][1];
-    playerEconomy.ice -= ice;
-    playerEconomy.power -= power;
-    
-    // Some more builds
-    if (t == 3) {
-        entity.name = 'Barracks';
-        entity.supply = [undefined, undefined, undefined];
-        entity.update = updateBarracks;
-    }
-    if (t == 4) {
-        entity.name = 'Factory';
-        entity.supply = [undefined, undefined];
-        entity.update = updateFactory;
-    }
-
-    // Palace Build Machine
-    if (t == 1) {
-        entity.update = undefined;
-        entity.name = 'Palace';
-        entity.control = {
-            'a': undefined, 
-            'b': undefined,
-            'c': ['Build Barracks', commandBuildBarracks],
-            'd': ['Build Factory', commandBuildFactory],
-            'e': ['Build Power', commandBuildCity],
-        };
-    }
-
-    // Power boost ?
-    if (t == 2) {
-        entity.name = 'Power';
-        playerEconomy.power += 1000;
-    }
-
-    // Clear out building space
-    var i = tt.x - 2, j = tt.y + 1;
-    setPlacementMap(i, j, 2);
-    setPlacementMap(i+1, j, 2);
-    setPlacementMap(i, j+1, 2);
-    setPlacementMap(i+1, j+1, 2);
-
-    // reset
-    place = 0;
-}
 
 // ---------------------------------------------------------------------------
 // -        PLACEMENT HACK
@@ -1116,34 +714,4 @@ function createEntity(t, x, y, faction) {
 function setPlacementMap(i, j, v) {
     if (placementMap[i] == undefined) placementMap[i] = [];
     placementMap[i][j] = v;
-}
-
-
-// ---------------------------------------------------------------------------
-// -        LOAD THE MAP
-// ---------------------------------------------------------------------------
-function setup2(map) {
-    var data    = map.layers[0].data,
-        objects = map.layers[1].objects,
-        n, obj, entity;
-
-    MAP.th = map.height;
-    MAP.tw = map.width;
-
-    for(n = 0 ; n < objects.length ; n++) {
-        obj = objects[n];
-        switch(obj.type) {
-        case "player"   : {entity = setupEntity(obj)}; break;
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// -        Game Entity
-// ---------------------------------------------------------------------------
-function xx_setupEntity(obj) {
-    var entity = {};
-    entity.x        = obj.x;
-    entity.y        = obj.y;
-    return entity;
 }
