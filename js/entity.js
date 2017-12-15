@@ -31,8 +31,8 @@ var unit_table = {
   'Tank_S':     ['Tank',       200,    920,    200,    2,      4,      7,      1.15],
   'Infantry_S': ['Infantry',    50,    360,    125,    1,      4,      5,      1.80],
   'Infantry':   ['Infantry',    50,    300,    100,    1,      8,      5,      1.25],
-  'Copter_S':   ['Copter',     350,   6000,    150,    1,      4,      4,      1.90],
-  'Copter':     ['Copter',     350,   4000,    150,    0,      0,      0,      2.00],  
+  'Copter_S':   ['Copter',     350,   1800,    150,    1,      4,      4,      1.90],
+  'Copter':     ['Copter',     350,   1500,    150,    0,      0,      0,      2.00],  
 };
 
 
@@ -82,6 +82,7 @@ function harvesterUpdate(entity) {
             // Unload
             economies[entity.faction].ice += entity.load;
             entity.load = 0;
+            entity.target = undefined;
         }
         return;
     }
@@ -98,19 +99,23 @@ function harvesterUpdate(entity) {
                 map.layers[1].data[tt.x + (tt.y*MAP.tw)] = 1412; // Mined magic
                 map.layers[2].data[tt.x + (tt.y*MAP.tw)] = 0; // Remove resource tag
                 entity.mining = true;
-                entity.actionTimer = { t:0, final: 6000 };
+                entity.actionTimer = { t:0, final: 1600 };
                 entity.actionTrigger = undefined;
             }
 
     } else {
-        if (entity.r && entity.r < 16000.0) {
+        if (entity.r && entity.r < 5 * 64) {
             ++entity.r;
         } else {
             entity.r = 1;
         }
         var a = Math.random() * 2 * Math.PI;
-        var x = Math.floor(1.6 * entity.r * Math.cos(a)) + entity.ppx;
-        var y = Math.floor(1.6 * entity.r * Math.sin(a)) + entity.ppy;
+        var x = Math.floor(
+            2 * entity.r * Math.cos(a) + 
+            entity.ppx + stage_x );// + 0.5 * (TILE_WIDTH) );
+        var y = Math.floor(
+            entity.r * Math.sin(a) + 
+            entity.ppy + stage_y ); //+ TILE_DEPTH - 7);
 
         // check if tile is harvestable
         tt = ScreenToTile(x, y);
@@ -133,13 +138,21 @@ function dist2(a, b) {
 }
 
 
+function canfire(a, b) {
+    if (a.faction == b.faction) return false;
+    if (a.faction == select.faction) return true;
+    if (b.faction == select.faction) return true;
+    return false;
+}
+
+
 function attackUnitUpdate(entity) {
 
     // Find nearby enemy?
     entity.fireUpon = undefined;
     var range = (entity.range * 64) * (entity.range * 64);
     for (var i in entityBatch) {
-        if (entityBatch[i].faction == entity.faction) continue;
+        if (!canfire(entityBatch[i], entity)) continue;
         if (entityBatch[i].hp <= 0) continue;
         if (dist2(entity, entityBatch[i]) < range) {
             entity.fireUpon = entityBatch[i];
@@ -182,6 +195,10 @@ function updateBuilding(entity) {
         var t = frameTick - entity.beginBuild;
         if (t > entity.buildDuration) {
             entity.state = entityState_idle;
+
+            if (entity.power > 0) {
+                economies[entity.faction].power += entity.power;
+            }
         }
     }
 }
@@ -194,9 +211,6 @@ function updateSupplyBuilding(entity) {
         
         for (var i = 0; i < entity.supply.length; ++i) {
             if (entity.supply[i] == undefined) {
-
-                // Clearance on map
-                if (collideUnit(entity)) continue;
 
                 // Cost
                 var ice = unit_table[entity.supply_type[i]][1];
@@ -241,12 +255,39 @@ function updateSupplyBuilding(entity) {
     
         var t = frameTick - entity.beginProduce;
         if (t > entity.produceDuration) {
-            // Add unit to scene
-            entityBatch.push(entity.nextUnit);           
-            entity.state = entityState_idle;
-        }    
+            // Clearance on map
+            if (!collideUnit(entity)) {
+                // Add unit to scene
+                entityBatch.push(entity.nextUnit);           
+                entity.state = entityState_idle;
+            }    
+        }
     } 
 }
+
+
+function buildingDestroy(entity) {
+  
+    if (entity.power > 0) {
+        economies[entity.faction].power -= entity.power;
+    } 
+    else if (entity.power < 0) {
+        economies[entity.faction].powerUsed += entity.power;
+    }
+
+    // Clear out building space
+    var i = entity.placement[0], j = entity.placement[1];
+    setPlacementMap(i, j, 0);
+    setPlacementMap(i+1, j, 0);
+    setPlacementMap(i, j+1, 0);
+    setPlacementMap(i+1, j+1, 0);
+
+    // Game
+    if (entity.palace) {
+        endGame(entity);
+    }
+}
+
 
 // ---------------------------------------------------------------------------
 // -        DAMAGING
@@ -261,6 +302,8 @@ function dealDamage(entity, dmg) {
         entity.frameOffset = frameTick;
         entity.target = undefined;
         entity.fireUpon = undefined;
+
+        if (!entity.canMove) buildingDestroy(entity);
     }
 }
 
@@ -299,6 +342,10 @@ function createAttackUnit(x, y, name, faction) {
 
     entity.dir = Math.floor(Math.random() * 4);
 
+    if (name == "Copter" || name == "Copter_S") {
+        entity.air = true;
+    } else entityBatch.air = false;
+
     return entity;
 }
 
@@ -330,6 +377,8 @@ function createHarvester(x, y, faction) {
     entity.update = harvesterUpdate;
     
     entity.dir = Math.floor(Math.random() * 4);
+
+    entity.harvester = true;
     
     return entity;
 }
@@ -349,10 +398,10 @@ function createEntity(t, x, y, faction) {
     var tt = ScreenToTile(x, y);
 
     // Check build tiles
-    if (canPlace(tt.x, tt.y) != 0) return; 
-    if (canPlace(tt.x+1, tt.y) != 0) return;
-    if (canPlace(tt.x, tt.y+1) != 0) return;
-    if (canPlace(tt.x+1, tt.y+1) != 0) return;
+    if (canPlace(tt.x, tt.y) != 0) return undefined; 
+    if (canPlace(tt.x+1, tt.y) != 0) return undefined;
+    if (canPlace(tt.x, tt.y+1) != 0) return undefined;
+    if (canPlace(tt.x+1, tt.y+1) != 0) return undefined;
     
     // y hack
     y += 32;
@@ -362,68 +411,11 @@ function createEntity(t, x, y, faction) {
     entity = {};
     entity.ppx = ss.x;// + 0.5 * (TILE_WIDTH - entity.img.width);
     entity.ppy = ss.y;// - entity.img.height + TILE_DEPTH;
-    entity.dir = 0;
-    
     entity.faction = faction;
-
-    entity.hp = 1000;
-    entity.maxhp = 1000;
-    entity.explOffset = 42;
-
-    // State
-    entity.state = entityState_building;
-    entity.beginBuild = frameTick;
-    entity.buildDuration = (build_costs[t] == undefined) ? 0 : build_costs[t][2];
-    
-    // TODO B
-    var unitName = buildNames[t];
-    colourName = ''+faction;
-    entity.unitName = 'bldg';
-    entity.dir = t;
     
     entityBatch.push(entity);
-        
-    // Some more builds
-    if (t == 3) {
-        entity.name = 'Barracks';
-        entity.supply = [undefined, undefined, undefined, undefined];
-        entity.supply_type = ['Infantry_S', 'Infantry_S', 'Infantry_S', 'Infantry_S']; 
-        entity.update = updateSupplyBuilding;
-    }
-    if (t == 4) {
-        entity.name = 'Factory';
-        entity.supply = [undefined, undefined, undefined];
-        entity.supply_type = ['Tank_S', 'Tank_S', 'Tank_S'];             
-        entity.update = updateSupplyBuilding;
-    }
-    if (t == 0) {
-        entity.name = 'Airport';
-        entity.supply = [undefined, undefined, undefined];
-        entity.supply_type = ['Copter_S', 'Copter_S', 'Copter_S'];             
-        entity.update = updateSupplyBuilding;
-    }
 
-    // Palace Build Machine
-    if (t == 1) {
-        entity.update = updateSupplyBuilding;
-        entity.supply = [undefined];
-        entity.supply_type = ['Supply_S'];
-        entity.name = 'Palace';
-        entity.control = {
-            'a': undefined, 
-            'b': undefined,
-            'c': ['Build Barracks', commandBuildBarracks],
-            'd': ['Build Factory', commandBuildFactory],
-            'e': ['Build Power', commandBuildCity],
-        };
-    }
-
-    // Power boost ?
-    if (t == 2) {
-        entity.name = 'Power';
-        economies[entity.faction].power += 5; // ?
-        entity.update = updateBuilding;
-    }
+    constructBuildingEntity(t, entity);
 
     // Clear out building space
     var i = tt.x - 2, j = tt.y + 1;
@@ -432,5 +424,191 @@ function createEntity(t, x, y, faction) {
     setPlacementMap(i, j+1, 2);
     setPlacementMap(i+1, j+1, 2);
 
+    entity.placement = [i, j];
+
+    if (t == 1) {
+        setPlacementMap(i, j+2, 2);
+        setPlacementMap(i+1, j+2, 2);
+        setPlacementMap(i, j+3, 2);
+        setPlacementMap(i+1, j+3, 2);    
+    }
+
     return entity;
+}
+
+
+var buildingTables = [];
+
+
+function setupTemplates() {
+    var templateAirport = {
+        name: 'Airport',
+        supply: [undefined, undefined],
+        supply_type: ['Copter', 'Copter'], 
+        update: updateSupplyBuilding,
+        power: -2,
+    };
+
+    var templateAirport_S = {
+        name: 'Airport',
+        supply: [undefined, undefined],
+        supply_type: ['Copter_S', 'Copter_S'], 
+        update: updateSupplyBuilding,
+        power: -2,
+    };
+
+    var templateAirport_S_p = {
+        name: 'Airport',
+        supply: [undefined, undefined, undefined],
+        supply_type: ['Copter_S', 'Copter_S', 'Copter_S'], 
+        update: updateSupplyBuilding,
+        power: -2,
+    };
+
+    var templateBarracks = {
+        name: 'Barracks',
+        supply: [undefined, undefined, undefined, undefined],
+        supply_type: ['Infantry', 'Infantry', 'Infantry', 'Infantry'], 
+        update: updateSupplyBuilding,
+        power: -2,
+    };
+
+    var templateBarracks_S = {
+        name: 'Barracks',
+        supply: [undefined, undefined, undefined],
+        supply_type: ['Infantry_S', 'Infantry_S', 'Infantry_S'], 
+        update: updateSupplyBuilding,
+        power: -2,
+    };
+
+    var templateBarracks_S_p = {
+        name: 'Barracks',
+        supply: [undefined, undefined, undefined, undefined],
+        supply_type: ['Infantry_S', 'Infantry_S', 'Infantry_S', 'Infantry_S'], 
+        update: updateSupplyBuilding,
+        power: -2,
+    };
+
+    var templateFactory = {
+        name: 'Factory',
+        supply: [undefined, undefined, undefined],
+        supply_type: ['Tank_S', 'Tank_S', 'Tank_S'], 
+        update: updateSupplyBuilding,
+        power: -2,
+    };
+
+    var templateFactory_p = {
+        name: 'Factory',
+        supply: [undefined, undefined, undefined, undefined],
+        supply_type: ['Tank_S', 'Tank_S', 'Tank_S', 'Tank_S'], 
+        update: updateSupplyBuilding,
+        power: -2,
+    };
+
+    var templatePower = {
+        name: 'Power Supply',
+        supply: [],
+        supply_type: [],
+        update: updateBuilding,
+        power: 2,
+    };
+
+    var templatePalace = {
+        name: 'Palace',
+        supply: [undefined],
+        supply_type: ['Supply_S'], 
+        update: updateSupplyBuilding,
+        power: 0,
+    };
+
+    var templatePalace_p = {
+        name: 'Palace',
+        supply: [undefined, undefined],
+        supply_type: ['Supply_S', 'Supply_S'], 
+        update: updateSupplyBuilding,
+        power: 0,
+    };
+
+    buildingTables[select.faction] = {
+        0: select.upgrade == 3 ?    templateAirport_S_p    :    templateAirport_S,
+        1: select.upgrade == 0 ?    templatePalace_p       :    templatePalace,
+        2: templatePower,
+        3: select.upgrade == 1 ?    templateBarracks_S_p   :    templateBarracks_S,
+        4: select.upgrade == 2 ?    templateFactory_p      :    templateFactory,
+    }
+
+
+    buildingTables[select.enemyFaction1] = {
+        0: templateAirport,
+        1: templatePalace,
+        2: templatePower,
+        3: templateBarracks,
+        4: templateFactory,
+    };
+
+
+    buildingTables[select.enemyFaction2] = {
+        0: templateAirport_S,
+        1: templatePalace,
+        2: templatePower,
+        3: templateBarracks_S_p,
+        4: templateFactory,
+    };
+
+    buildingTables[select.enemyFaction3] = {
+        0: templateAirport_S,
+        1: templatePalace_p,
+        2: templatePower,
+        3: templateBarracks_S,
+        4: templateFactory,
+    };
+
+    buildingTables[select.enemyFaction4] = {
+        0: templateAirport,
+        1: templatePalace_p,
+        2: templatePower,
+        3: templateBarracks,
+        4: templateFactory_p,
+    };
+}
+
+
+function constructBuildingEntity(t, entity) {
+
+    entity.dir = 0;
+    
+    entity.hp = 1000;
+    entity.maxhp = 1000;
+    entity.explOffset = 42;
+
+    // State
+    entity.state = entityState_building;
+    entity.beginBuild = frameTick;
+    entity.buildDuration = (build_costs[t] == undefined) ? 0 : build_costs[t][2];
+  
+    var unitName = buildNames[t];
+    entity.unitName = 'bldg';
+    entity.dir = t;
+    
+    var template = buildingTables[entity.faction][t];
+
+    entity.name = template.name;
+    entity.supply = template.supply.slice(0); // DEEP COPY 
+    entity.supply_type = template.supply_type.slice(0); 
+    entity.update = template.update;
+    entity.power = template.power;
+
+    // Palace Build Machine
+    if (t == 1) {
+        entity.control = {
+            'a': ['Build Airport', commandBuildAirport], 
+            'b': ['Build Barracks', commandBuildBarracks],
+            'c': ['Build Factory', commandBuildFactory],
+            'd': undefined,
+            'e': ['Build Power', commandBuildCity],
+        };
+
+        entity.palace = true;
+    }
+
 }

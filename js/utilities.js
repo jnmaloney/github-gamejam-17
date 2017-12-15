@@ -83,6 +83,7 @@ function ScreenToTile(mX, mY)
     var y = mY - stage_y;
     selectedTile.x = Math.floor( (y + x/2)/TILE_DEPTH );
     selectedTile.y = Math.floor( (y - x/2)/TILE_DEPTH );
+
     return selectedTile;
  }
 

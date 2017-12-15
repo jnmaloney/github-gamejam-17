@@ -1,8 +1,16 @@
 select = {};
 select.card = new Image();
 select.card.src = 'img/card.png';
-select.faction = 2;
 select.hoverGo = 0;
+select.hoverBuildUpgrades = [];
+select.upgrade = 0;
+
+var buildUpgrades = [
+    'Palace',
+    'Barracks',
+    'Factory',
+    'Airport'
+];
 
 function mouseSelect(res, e) {
 
@@ -32,17 +40,41 @@ function mouseSelect(res, e) {
         if (currX > x && currY > y &&
             currX < x + w && currY < y + h)
                 select.hoverGo = 1;
-            else
+        else
                 select.hoverGo = 0;
 
+        // bld upg
+        x = 0.5 * (canvas.width - 1024) + 662;
+        y = 0.5 * (canvas.height - 720) + 362;
+        w = 248;
+        h = 42;
+        for (var i in buildUpgrades) {
+            y += 42;
 
+            if (currX > x && currY > y &&
+                currX < x + w && currY < y + h)
+                    select.hoverBuildUpgrades[i] = 1;
+            else
+                    select.hoverBuildUpgrades[i] = 0;
+        }
     }
     if (res == 'down') {
         if (select.hover != undefined) {
             select.faction = select.hover;
+            select.enemyFaction1 = select.faction == 0 ? 4 : 0;
+            select.enemyFaction2 = select.faction == 1 ? 5 : 1;
+            select.enemyFaction3 = select.faction == 2 ? 6 : 2;
+            select.enemyFaction4 = select.faction == 3 ? 7 : 3;
         } else if (select.hoverGo) {
             // ... next scene
             setState(gameEngineState_game);
+        } else {
+            for (var i in buildUpgrades) {
+                if (select.hoverBuildUpgrades[i]) {
+                    select.upgrade = i;
+                    break;
+                }
+            }
         }
     }
 
@@ -50,7 +82,11 @@ function mouseSelect(res, e) {
 
 function beginSelect() {
 
-
+    select.faction = 2;
+    select.enemyFaction1 = select.faction == 0 ? 4 : 0;
+    select.enemyFaction2 = select.faction == 1 ? 5 : 1;
+    select.enemyFaction3 = select.faction == 2 ? 6 : 2;
+    select.enemyFaction4 = select.faction == 3 ? 7 : 3;
 
 }
 
@@ -103,6 +139,8 @@ function drawSelect() {
     ctx.fillStyle = 'white';
     ctx.fillText(text, x-1, y-1, 200);
 
+
+ 
     w = 24;
     h = 24;
     for (var i = 0; i < 8; ++i) {
@@ -121,84 +159,69 @@ function drawSelect() {
     
     }
 
-    // Building Cards
-    var buildingNames = [
-        ['Factory', 'Airport', 'Laboratory'],
-        ['Estate', 'Factory', 'Airport'],
-        ['Estate', 'Factory', 'Laboratory'],
-        ['Estate', 'Airport', 'Laboratory'],
-        ['Factory', 'Airport', 'Laboratory'],
-        ['Estate', 'Factory', 'Airport'],
-        ['Estate', 'Factory', 'Laboratory'],
-        ['Estate', 'Airport', 'Laboratory'],
-    ];
+    var unitNames = ['Copter_S', 'Tank_S', 'Infantry_S'];
 
-    var j = select.faction;
+    // Load
+    loadFramesBank(select.faction, 'Infantry_S', true, false);
+    loadFramesBank(select.faction, 'Tank_S', true, false);
+    loadFramesBank(select.faction, 'Copter_S', true, false);
 
     x = 0.5 * (canvas.width - 1024) + 112;
-    y = 0.5 * (canvas.height - 720) + 252 + 95;
+    y = 0.5 * (canvas.height - 720) + 505;
 
-    text = 'Buildings';
+    text = 'Units';
     ctx.fillStyle = 'black';
     ctx.fillText(text, x, y, 200);
     ctx.fillStyle = 'white';
     ctx.fillText(text, x-1, y-1, 200);
 
-    y = 0.5 * (canvas.height - 720) + 252;
+    x = 0.5 * (canvas.width - 1024) + 292;
+    y = 0.5 * (canvas.height - 720) + 402;
 
+    // bkg
+    ctx.drawImage(select.card, x, y);
+
+    // Units
     for (var i = 0; i < 3; ++i) { 
-        x = 0.5 * (canvas.width - 1024) + 292 + 205 * i;
+        x = 0.5 * (canvas.width - 1024) + 298 + 55 * (i % 2);
+        y += 32; 
 
-        ctx.drawImage(select.card, x, y);
-
-        var f = 0;
-        var dir = 0;
-        var colourName = j;
-        var standing_prefix = "_img/";
-        var img = new Image();
-        img.src = standing_prefix + "color"+colourName+"/"+buildingNames[j][i]+"_Large_face"+dir+"_"+f+".png";
-        ctx.drawImage(img, x + 35, y + 30);
-
+        var tile = getEntityTile({unitName: unitNames[i], faction: select.faction, dir: i%2});
+        
+        ctx.drawImage(
+            tile.sheet, 
+            tile.x, tile.y,
+            tile.w, tile.h,
+            x, y - 27,
+            tile.w, tile.h);
     }
+    
+    // Upgrades
+    x = 0.5 * (canvas.width - 1024) + 752;
+    y = 0.5 * (canvas.height - 720) + 392;
 
-    // Unit cards
-    var unitNames = [
-        ['Tank_S', 'Copter_S', 'Artillery_T'],
-        ['Infantry_S', 'Artillery_S', 'Copter_S'],
-        ['Infantry_S', 'Tank_S', 'Artillery_T'],
-        ['Infantry_S', 'Copter_S', 'Plane_T'],
-        ['Artillery_S', 'Copter_S', 'Tank_T'],
-        ['Infantry_S', 'Tank_S', 'Tank_T'],
-        ['Infantry_S', 'Artillery_S', 'Tank_T'],
-        ['Infantry_S', 'Copter_S', 'Infantry_T'],
-    ];
+    for (var i in buildUpgrades) {
+        text = buildUpgrades[i];
+        y += 42;
     
-        x = 0.5 * (canvas.width - 1024) + 112;
-        y = 0.5 * (canvas.height - 720) + 452 + 95;
-    
-        text = 'Units';
         ctx.fillStyle = 'black';
         ctx.fillText(text, x, y, 200);
         ctx.fillStyle = 'white';
+        if (select.hoverBuildUpgrades[i]) ctx.fillStyle = 'yellow';
         ctx.fillText(text, x-1, y-1, 200);
+    }
+
+    x = 0.5 * (canvas.width - 1024) + 852;
+    y = 0.5 * (canvas.height - 720) + 392;
     
-        y = 0.5 * (canvas.height - 720) + 452;
-    
-        for (var i = 0; i < 3; ++i) { 
-            x = 0.5 * (canvas.width - 1024) + 292 + 205 * i;
-    
-            ctx.drawImage(select.card, x, y);
-    
-            var f = 0;
-            var dir = 0;
-            var colourName = j;
-            var standing_prefix = "_img/";
-            var img = new Image();
-            img.src = standing_prefix + "color"+colourName+"/"+unitNames[j][i]+"_Large_face"+dir+"_"+f+".png";
-            ctx.drawImage(img, x + 35, y + 30);
-    
-        }
-    
+    text = '+1';
+    y += 42 * (select.upgrade*1 + 1);
+
+    ctx.fillStyle = 'black';
+    ctx.fillText(text, x, y, 200);
+    ctx.fillStyle = 'white';
+    ctx.fillText(text, x-1, y-1, 200);
+
 
     // Next GO >>
     x = 0.5 * (canvas.width - 1024) + 954;

@@ -12,6 +12,9 @@ function setup() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight; 
 
+    // Faction Build-Upgrade Templates
+    setupTemplates();
+
     // Load tilesets
     get('maps/snowplains_other_min.json', function(req) {
         loadTileset(JSON.parse(req.responseText), 817);
@@ -25,29 +28,21 @@ function setup() {
     get('maps/Cracks.json', function(req) {
         loadTileset(JSON.parse(req.responseText), 1411);
     });
-
-    // Set factions to use
-    var enemy_faction = select.faction ? 0 : 2;
     
+    // Set up player economy
     economies[select.faction] = playerEconomy;
-    economies[enemy_faction] = aiEconomy;
 
 
     // Load data
     loadFramesBank(select.faction, 'bldg', false, false);
-    loadFramesBank(enemy_faction, 'bldg', false, false);
 
     loadFramesBank(select.faction, 'Supply_S', false, false);
     loadFramesBank(select.faction, 'Infantry_S', true, false);
     loadFramesBank(select.faction, 'Tank_S', true, false);
     loadFramesBank(select.faction, 'Copter_S', true, false);
-    
-    loadFramesBank(enemy_faction, 'Supply_S', false, false);
-    loadFramesBank(enemy_faction, 'Infantry_S', true, false);
-    loadFramesBank(enemy_faction, 'Tank_S', true, false);      
-    loadFramesBank(enemy_faction, 'Copter_S', true, false);      
-    
-    var src = 'maps/new_game.json';
+
+
+    var src = 'maps/' + map_src;
     get(src, function(req) {
             loadMap(JSON.parse(req.responseText));
 
@@ -66,26 +61,52 @@ function setup() {
             // Create base
             TILE_WIDTH = 64;
             TILE_DEPTH = 32;
-            //var ss = TileToScreen(84, 74, stage_x, stage_y);
-            //createEntity(1, ss.x, ss.y, select.faction);
-            ss = TileToScreen(84, 76, stage_x, stage_y);
-            createEntity(1, ss.x, ss.y, select.faction);
+            ss = TileToScreen(
+                player_spawn.x / 32 + 2, 
+                player_spawn.y / 32 - 0, 
+                stage_x, stage_y);
+            economies[select.faction].palace = 
+                createEntity(1, ss.x, ss.y, select.faction);
+            
 
             stage_x = -ss.x + 0.5 * canvas.width;
             stage_y = -ss.y + 0.5 * canvas.height;
 
-            ss = TileToScreen(79, 82, stage_x, stage_y);
-            entityBatch.push(
-                createAttackUnit(ss.x, ss.y, 'Infantry_S', select.faction) );
-            ss = TileToScreen(89, 82, stage_x, stage_y);
-            entityBatch.push(
-                createAttackUnit(ss.x, ss.y, 'Tank_S', select.faction) );
+            // ss = TileToScreen(79, 82, stage_x, stage_y);
+            // entityBatch.push(
+            //     createAttackUnit(ss.x, ss.y, 'Infantry_S', select.faction) );
+            // ss = TileToScreen(89, 82, stage_x, stage_y);
+            // entityBatch.push(
+            //     createAttackUnit(ss.x, ss.y, 'Tank_S', select.faction) );
 
-            // TEST
-            // Create Enemy Base
-            ss = TileToScreen(9, 7, stage_x, stage_y);
-            createEntity(1, ss.x, ss.y, enemy_faction);
 
+            // Create Enemy Bases
+            for (var i in aiList) {
+
+                ss = TileToScreen(
+                    aiList[i].info.spawn.x / 32 + 2, 
+                    aiList[i].info.spawn.y / 32 - 0, 
+                    stage_x, stage_y);
+
+                aiList[i].economy.palace = 
+                    createEntity(1, 
+                        ss.x, 
+                        ss.y, 
+                        aiList[i].faction);
+
+                // Set up enemy economy
+                economies[aiList[i].faction] = aiList[i].economy;
+                                
+                // Load Sprites
+                loadFramesBank(aiList[i].faction, 'bldg', false, false);
+                
+                loadFramesBank(aiList[i].faction, 'Supply_S', false, false);
+                loadFramesBank(aiList[i].faction, 'Infantry', true, false);
+                loadFramesBank(aiList[i].faction, 'Infantry_S', true, false);
+                loadFramesBank(aiList[i].faction, 'Tank_S', true, false);      
+                loadFramesBank(aiList[i].faction, 'Copter', true, false);  
+                loadFramesBank(aiList[i].faction, 'Copter_S', true, false);  
+            }
         });
 
 }
@@ -97,16 +118,50 @@ function setup() {
 var cells = [];
 var MAP = {};
 var tileList = [];
+var player_spawn = undefined;
 function loadMap(mapJson) {
 
     map = mapJson;
 
-    var data    = map.layers[0].data,
-        objects = map.layers[1].objects,
-        n, obj, entity;
-
     MAP.th = map.height;
     MAP.tw = map.width;
+
+    // Parse map objects
+    var objects = map.layers[3].objects;
+
+    // AI Zone types
+    var harvests = [],
+        rallies = [],
+        spawns = [],
+        attacks = [];
+
+    for (var i in objects) {
+        var object = objects[i];
+        if (object.type == "spawn") {
+            spawns.push(object);
+        } else if (object.type == "harvest") {
+            harvests.push(object);
+        } else if (object.type == "rally") {
+            rallies.push(object);
+        } else if (object.type == "attack") {
+            attacks.push(object);
+        } else if (object.type == "player_spawn") {
+            // This is where the player starts
+            player_spawn = object;
+        }
+    }
+
+    // Create AI player for each spawn
+    for (var i in spawns) {
+        ai = {};
+        ai.index = i;
+        ai.spawn = spawns[i];
+        ai.harvests = harvests;
+        ai.rallies = rallies;
+        ai.attacks = attacks;
+        //
+        setupAI(ai);
+    }
 }
 
 
@@ -156,7 +211,7 @@ function restart() {
 // ---------------------------------------------------------------------------
 // -        Char controls
 // ---------------------------------------------------------------------------
-var place = 0;
+var place = undefined;
 var left = keyboard(37),
     up = keyboard(38),
     right = keyboard(39),
@@ -168,6 +223,7 @@ var left = keyboard(37),
     ebutton = keyboard(0x42),
     fbutton = keyboard(0x4E),
     gbutton = keyboard(0x4D);
+var spaceKey = keyboard(32);    
 left.press = function() {
 };
 
@@ -188,25 +244,20 @@ down.press = function() {
 down.release = function() {
 }
 abutton.press = function() {
-    //tryBuild(0);
     doSelectionCommand('a');
 }
 abutton.release = function() {
 }
 bbutton.press = function() {
-    //tryBuild(1);
     doSelectionCommand('b');
 }
 cbutton.press = function() {
-    //tryBuild(2);
     doSelectionCommand('c');
 }
 dbutton.press = function() {
-    //tryBuild(3);
     doSelectionCommand('d');
 }
 ebutton.press = function() {
-    //tryBuild(4);
     doSelectionCommand('e');
 }
 
@@ -222,6 +273,18 @@ control = {};
 gbutton.press = function() {
     tryCommandMove();
 }
+
+
+spaceKey.press = function() {
+
+    if (selected.length == 1 && selected[0] == economies[select.faction].palace) {
+        stage_x = -economies[select.faction].palace.ppx + 0.5 * canvas.width;
+        stage_y = -economies[select.faction].palace.ppy + 0.5 * canvas.height;
+    } else {
+        selected = [economies[select.faction].palace];
+    }
+}
+
 
 var cursors = {
     move: 'crosshair'
@@ -281,7 +344,7 @@ function mouseGame(res, e) {
             if (control.move) {
                 moveCommand(currX, currY);
             } else if (place) {
-                tryPlace(place);
+                tryPlace(place.id);
             } else {
                 selectionBox = { x0: x, y0: y, x1: x, y1: y };
             }
@@ -396,25 +459,25 @@ function tryBuild(t) {
     // Check resources
     var ice = build_costs[t][0];
     var power = build_costs[t][1];
-    var availablePower = playerEconomy.power;
+    var availablePower = playerEconomy.power - playerEconomy.powerUsed;
     var availableIce = playerEconomy.ice;
     if (availablePower < power) return;
     if (availableIce < ice) return;
     
     // Go into building place mode
-    place = t;
+    place = { id: t };
 }
 
 
 function tryPlace(t) {
 
     // Cancel
-    place = 0;
+    place = undefined;
 
     // Check resources
     var ice = build_costs[t][0];
     var power = build_costs[t][1];
-    var availablePower = playerEconomy.power;
+    var availablePower = playerEconomy.power - playerEconomy.powerUsed;
     var availableIce = playerEconomy.ice;
     if (availablePower < power) return;
     if (availableIce < ice) return;
@@ -424,7 +487,7 @@ function tryPlace(t) {
     if (entity) {
             
         // Cost
-        playerEconomy.power -= power;
+        playerEconomy.powerUsed += power;
         playerEconomy.ice -= ice;
     }
     
@@ -459,6 +522,7 @@ function updateMovePath() {
         if (entity.update) entity.update(entity);
         
         if (!entity.canMove) continue;
+        if (entity.hp <= 0) continue;
         if (entity.target) {
             entity.dx = 0;
             entity.dy = 0;
@@ -472,6 +536,10 @@ function updateMovePath() {
             else if (entity.ppy > entity.target.y + 1) entity.dy -= 1;
             else { entity.ppy = entity.target.y; entity.dy = 0; }
 
+            // if (entity.ppx == entity.target.x && entity.ppy == entity.target.y) { 
+            //     entity.target = undefined; continue;
+            // }
+
             entity.dxss = 2 * entity.speed * entity.dx;
             entity.dyss = entity.speed * entity.dy;
 
@@ -479,6 +547,7 @@ function updateMovePath() {
             var brake = false;
             for (var j = 0; j < entityBatch.length; ++j) {
                 if (i == j) continue;
+                if (!collidesWith(entity, entityBatch[j])) continue; // Check flags
                 if (entity.load && !entityBatch[j].canMove) continue; // Loading hack
                 var otherEntity = entityBatch[j];
                 var a = { 
@@ -572,19 +641,29 @@ function updateMovePath() {
             else entity.ppy += entity.dyss;
         } 
     }
-
-    //  Baddie update
-    aiUpdate();
-
 }
 
+
+// Check flags
+function collidesWith(a, b) {
+
+    // Harvester
+    if (a.harvester) return b.canMove;
+
+    // Air
+    if (a.air) return b.air;
+
+    // Ground
+    return !(b.air);
+}
 
 // ---------------------------------------------------------------------------
 // -        PLAYER ECONOMY
 // ---------------------------------------------------------------------------
 var playerEconomy = {};
-playerEconomy.ice = 2000;
+playerEconomy.ice = 2200;
 playerEconomy.power = 0;
+playerEconomy.powerUsed = 0;
 
 
 // ---------------------------------------------------------------------------
@@ -673,6 +752,11 @@ function loadFramesBank(colorName, unitName, atk0, atk1) {
 // ---------------------------------------------------------------------------
 // -        BUILDINGS
 // ---------------------------------------------------------------------------
+function commandBuildAirport() {
+    tryBuild(0);
+}
+
+
 function commandBuildBarracks() {
     tryBuild(3);
 }
@@ -714,4 +798,13 @@ function collideUnit(entity) {
 function setPlacementMap(i, j, v) {
     if (placementMap[i] == undefined) placementMap[i] = [];
     placementMap[i][j] = v;
+}
+
+
+
+// ---------------------------------------------------------------------------
+// -        PALACE WAS DESTROYED
+// ---------------------------------------------------------------------------
+function endGame(entity) {
+
 }

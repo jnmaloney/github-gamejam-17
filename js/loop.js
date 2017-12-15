@@ -32,7 +32,7 @@ var gameEngineState_game = {
 var gameEngineState = {};
 function setState(state) {
     gameEngineState = state;
-    gameEngineState.enter();       
+    gameEngineState.enter();
 }
 setState(gameEngineState_intro);
 
@@ -55,6 +55,11 @@ loop();
 
 
 function gameState(dt) {
+
+    // Pathing
+    updateMovePath();
+
+
     // Remove exploded entities
     for (var i in entityBatch) {
         var e = entityBatch[i];
@@ -79,6 +84,11 @@ function gameState(dt) {
             }
         }
     }
+
+    // Baddies
+    for (var i in aiList) {
+        aiUpdate(aiList[i]);
+    }
 }
 
 
@@ -93,8 +103,7 @@ function gameDraw() {
     drawLayer2(0, 0);
     drawLayer2(0, 1);
     drawLayer1(1);
-    drawShade();
-
+    
     cursorOverlay();
 
     updateSmoke();
@@ -230,6 +239,7 @@ var quickKeyMap  = {
     'e': 'B',
 } 
 
+
 function cursorOverlay() {
 
     // building placement blocks
@@ -316,8 +326,6 @@ function cursorOverlay() {
 
         if (height > 200) { y += entity.explOffset; }
 
-        if (entity.state == entityState_building) {}
-        else
         ctx.drawImage(
             tile.sheet, 
             tile.x, tile.y,
@@ -366,6 +374,7 @@ function cursorOverlay() {
                 64, 10);
             ctx.fillStyle = 'darkgrey';
             var l = 62 * (frameTick - entity.beginBuild) / entity.buildDuration;
+            if (l > 62) l = 62;
             if (l > 0) {
                 ctx.fillRect(x+16, y + 94, 
                 l, 8);
@@ -378,6 +387,7 @@ function cursorOverlay() {
                 64, 10);
             ctx.fillStyle = 'darkgrey';
             var l = 62 * (frameTick - entity.beginProduce) / entity.produceDuration;
+            if (l > 62) l = 62;
             if (l > 0) {
                 ctx.fillRect(x+16, y + 44, 
                 l, 8);
@@ -385,51 +395,15 @@ function cursorOverlay() {
         }
     }
     
-    // Pathing
-    updateMovePath();
     
     // Console
-    var tt = ScreenToTile(currX, currY);
-    ctx.fillText(tt.x + ', ' + tt.y, 25, 25);
+    //var tt = ScreenToTile(currX, currY);
+    //ctx.fillText(tt.x + ', ' + tt.y, 25, 25);
 
-    // HUD
-    ctx.fillText('ice'+playerEconomy.ice + ',    pwr' + playerEconomy.power, canvas.width-125, 25);
-
-    var y0 = 225;
-    for (var i = 0; i < selected.length; ++i) {
-        var entity = selected[i];
-        var str = '';
-        if (entity.name) str = entity.name;
-        else str = entity;
-        ctx.fillText(
-            i+1 + '. ' + str, 
-            canvas.width-125,
-            y0);
-
-        y0 += 25;
-
-        if (entity.control) {
-            for (var j in entity.control) {
-                if (entity.control[j]) {
-                str = entity.control[j][0];
-                    ctx.fillText(
-                        '[' + quickKeyMap[j] + ']  ' + str, 
-                        canvas.width-125,
-                        y0);
-            
-                    y0 += 25;
-                }
-            }
-        }
-    }
-
-    // Minimap 
-
-    // Resources
 
     // UI
 
-    // Selection units
+    // Selection box
     if (selectionBox != undefined) {
         ctx.beginPath();
         ctx.moveTo(selectionBox.x0, selectionBox.y0);
@@ -448,7 +422,122 @@ function cursorOverlay() {
     }
 
 
+
+
+    // HUD
+    var x0 = canvas.width - 305;
+    var y0 = 45;
+    var h0 = 45;
+
+    var selectionMap = {};
+    var commandMap = {};
+
+    for (var i = 0; i < selected.length; ++i) {
+        var entity = selected[i];
+        var str = '?';
+        if (entity.name) str = entity.name;
+        if (selectionMap[str] == undefined) {
+            selectionMap[str] = 1;
+        } else {
+            ++selectionMap[str];
+        }
+
+        if (entity.control) {
+            for (var j in entity.control) {
+                if (entity.control[j]) {
+                    var str = entity.control[j][0];
+                    
+                    if (commandMap[j] == undefined) {
+                        commandMap[j] = [str];
+                    } else {
+                        commandMap[j].push(str);
+                    }
+                }
+            }
+        }
+    }
+
+    // HUD Elements
+    var w = 355 - 8;
+
+    var lineHeight = 42;
+    var h = lineHeight * Object.keys(selectionMap).length + 
+            lineHeight * Object.keys(commandMap).length + 
+            h0 + 4;
+
+
+    ctx.fillStyle = 'darkgrey';
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(x0, y0, w, h);
+
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'black';
+    ctx.strokeRect(x0-1, y0, w+1, h+1);
+    ctx.strokeStyle = 'white';
+    ctx.strokeRect(x0, y0, w, h);
+
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x0,y0+h0 + 4);
+    ctx.lineTo(x0+w,y0+h0 + 4);
+    ctx.stroke();     
+
+    // HUD Text
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'white';
+    ctx.font = '18px sans-serif';
+
+    function fillText(text, x, y) {
+
+        ctx.fillStyle = 'black';
+        ctx.fillText(text, x-1, y+1);
+        ctx.fillStyle = 'white';
+        ctx.fillText(text, x, y);
+    }
+
+    fillText(
+        'ice  ' + playerEconomy.ice + '        pwr  ' + playerEconomy.powerUsed + ' / ' +  playerEconomy.power, 
+        x0 + 30, 
+        y0 + lineHeight-12);
+    
+    var yy0 = 0;
+    for (var i in selectionMap) {
+
+        var str = i;
+        var n = selectionMap[i];
+        
+        fillText(
+            n + ' x ' + str, 
+            x0 + 30,
+            y0 + h0 + yy0 + lineHeight-12);
+
+        yy0 += lineHeight;
+    }
+
+    for (var i in commandMap) {
+        
+        var str = commandMap[i];
+        var j = i;
+
+        fillText(
+            '[' + quickKeyMap[j] + ']  ' + str, 
+            x0 + 30,
+            y0 + h0 + yy0 + lineHeight-12);
+
+        yy0 += lineHeight;
+    }
+
+    // Minimap 
+
+    // Resources
+    
+
 }
+
+
+var buildingImage = new Image();
+buildingImage.src = "_img_gen/bldg.png";
 
 
 function getEntityTile(entity) {
@@ -461,7 +550,13 @@ function getEntityTile(entity) {
         h: 0,
     }
 
-    if (entity.state == entityState_explode) {
+    if (entity.state == entityState_building) {
+        retVal.sheet = buildingImage;
+        retVal.w = 88;
+        retVal.h = 108;
+        retVal.x = 0;
+        retVal.y = 0;
+    } else if (entity.state == entityState_explode) {
 
         var i = Math.floor((frameTick - entity.frameOffset) / 4);
         if (i > 11) i = 11;
@@ -538,9 +633,21 @@ function drawLayer1(layer) {
 
             // ?
             tt = ScreenToTile(x, y);            
-                        
-            //var tile = getMapTile(layer, tt.x, tt.y); 
-            var tile = getMapTile(layer, tt.x, tt.y);      
+            //var p0 = TileToScreen(tt.x, tt.y, stage_x, stage_y);
+            //var rank = 
+
+
+            var tile;
+            //if (p0.x == x - 32 && p0.y == y)
+                tile = getMapTile(layer, tt.x, tt.y);      
+            //else console.log(p0.x - x);
+
+            if (tt.x < 0 || 
+                tt.y < 0 || 
+                tt.x > map.width - 1  ||
+                tt.y > map.height - 1) {
+                    tile = { img: blank, ox: 0, oy: 0, tilewidth: blank.width, tileheight: blank.height };
+            }
             
             if (tile) {
                 var x0 = x;
@@ -574,7 +681,7 @@ function drawLayer2(layer , v) {
     off_y -= height;
 
     for (var j = 0+j_off-1; j < ty+j_off; ++j) {
-        for (var i = 0+i_off-1; i < tx+i_off; ++i) {
+        for (var i = 0+i_off-3; i < tx+i_off; ++i) {
             x = off_x + (i-i_off) * width;
             y = off_y + (j-j_off) * height;
 
@@ -602,6 +709,9 @@ function drawLayer2(layer , v) {
     }
 }
 
+
+var blank = new Image();
+blank.src = '_img/terrain/blackout3.png';
 
 function getMapTile(layer, x, y) {
 

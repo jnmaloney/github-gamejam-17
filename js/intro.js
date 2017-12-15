@@ -7,9 +7,16 @@ var intro = {
 };
 
 
+var map_src = "";
 function introMouse(res, e) {
     if (res == 'down') {
         if (intro.selected) {
+            map_src = "new_game.json";
+            setState(gameEngineState_select);
+        }
+
+        if (intro.selected2) {
+            map_src = "new_game_2.json";
             setState(gameEngineState_select);
         }
     }
@@ -40,14 +47,21 @@ function playAppIntro(dt) {
     //     }
     // }
 
-    var h = 99;   
+    var h = 99;
     var y = 0.5 * (canvas.height + h);
-    var y0 = y;
-    var y1 = y0 + 15 + 24 + 15;
+    var y0 = y + 35;
+    var y1 = y0 + 15 + 24;
     if (currY > y0 && currY < y1)
         intro.selected = true;
     else
-        intro.selected = false;  
+        intro.selected = false;
+
+    y0 = y0 + 15 + 24;
+    y1 = y1 + 15 + 24;       
+    if (currY > y0 && currY < y1)
+        intro.selected2 = true;
+    else
+        intro.selected2 = false;
 }
 
 
@@ -79,11 +93,11 @@ function drawScreen(tile, fill) {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     ctx.fillStyle = fill ? fill : "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);  
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     var width = tile.width;
     var height = tile.height;
-    
+
     // var h = (canvas.height > height) ? height : canvas.height;
     // var w = h * width / height;
     var h = height;
@@ -105,9 +119,9 @@ function drawScreen(tile, fill) {
 
 
 function drawAppMenu() {
- 
+
     var w = 340;
-    var h = 99;   
+    var h = 149;
     var x = 0.5 * (canvas.width - w);
     var y = 0.5 * (canvas.height + h);
 
@@ -127,7 +141,15 @@ function drawAppMenu() {
     ctx.textAlign = 'center';
     ctx.fillText(text, x0, y0, 200);
     ctx.fillStyle = intro.selected ? 'yellow' : 'white';
-    ctx.fillText(text, x0-1, y0-1, 200);
+    ctx.fillText(text, x0 - 1, y0 - 1, 200);
+
+    y0 = y0 + 15 + 24;
+    text = 'New Game+';
+    ctx.fillStyle = 'black';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x0, y0, 200);
+    ctx.fillStyle = intro.selected2 ? 'yellow' : 'white';
+    ctx.fillText(text, x0 - 1, y0 - 1, 200)
 
     y0 = y0 + 15 + 24;
     text = 'Quit to Desktop';
@@ -135,57 +157,57 @@ function drawAppMenu() {
     ctx.textAlign = 'center';
     ctx.fillText(text, x0, y0, 200);
     ctx.fillStyle = 'white';
-    ctx.fillText(text, x0-1, y0-1, 200)
+    ctx.fillText(text, x0 - 1, y0 - 1, 200)
 }
 
 
 function drawScreenGif(tile, fill) {
-    
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        ctx.fillStyle = fill ? fill : "black";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);  
-          
-        var width = tile.width;
-        var height = tile.height;
-        
-        var h = 250;
-        var w = 315;
-    
-        var x = 0.5 * (canvas.width - w);
-        var y = 0.5 * (canvas.height - h);
-    
-        var f = (intro.gameOffCurrentFrame + intro.gameOffOffset + intro.gameOffFrames) % intro.gameOffFrames;
-        var ox = 315 * (f % 8);
-        var oy = 250 * Math.floor(f/8);
-        //console.log(ox + ', ' + oy);
-    
-        ctx.drawImage(tile, ox, oy, 315, 250, 
-            x, y, w, h);
-    }
-    
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ctx.fillStyle = fill ? fill : "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    var width = tile.width;
+    var height = tile.height;
+
+    var h = 250;
+    var w = 315;
+
+    var x = 0.5 * (canvas.width - w);
+    var y = 0.5 * (canvas.height - h);
+
+    var f = (intro.gameOffCurrentFrame + intro.gameOffOffset + intro.gameOffFrames) % intro.gameOffFrames;
+    var ox = 315 * (f % 8);
+    var oy = 250 * Math.floor(f / 8);
+    //console.log(ox + ', ' + oy);
+
+    ctx.drawImage(tile, ox, oy, 315, 250,
+        x, y, w, h);
+}
 
 
 
-    function fillFade() {
-        var a = intro.fade / 30.0;
-        var tile = intro.gameOffImg;
-        --intro.fade;
 
-        var f = 91-8-13 + (frame*15 + frameTick) % 13;
-        var ox = 315 * (f % 8);
-        var oy = 250 * Math.floor(f/8);
+function fillFade() {
+    var a = intro.fade / 30.0;
+    var tile = intro.gameOffImg;
+    --intro.fade;
 
-        var x = 0;
-        var y = 0;
-        var w = canvas.width;
-        var h = canvas.height;
+    var f = 91 - 8 - 13 + (frame * 15 + frameTick) % 13;
+    var ox = 315 * (f % 8);
+    var oy = 250 * Math.floor(f / 8);
 
-        ctx.save();
-        ctx.globalAlpha = a;
+    var x = 0;
+    var y = 0;
+    var w = canvas.width;
+    var h = canvas.height;
 
-        ctx.drawImage(tile, ox, oy, 315, 250, 
-            x, y, w, h);
-            
-        ctx.restore();
-    }
+    ctx.save();
+    ctx.globalAlpha = a;
+
+    ctx.drawImage(tile, ox, oy, 315, 250,
+        x, y, w, h);
+
+    ctx.restore();
+}
